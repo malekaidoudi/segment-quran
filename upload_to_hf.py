@@ -3,7 +3,6 @@
 Uploader le dossier data/ vers Hugging Face
 ============================================
 Usage:
-    export HUGGINGFACE_TOKEN=hf_xxx
     python upload_to_hf.py
 """
 
@@ -17,7 +16,6 @@ from huggingface_hub import HfApi, create_repo
 PROJECT_ROOT = Path(__file__).resolve().parent
 load_dotenv(PROJECT_ROOT / ".env")
 
-# Configuration
 DATA_DIR = PROJECT_ROOT / "data"
 HF_DATASET_REPO = os.getenv("HF_DATASET_REPO", "malekaidoudi/segment-quran-data")
 TOKEN = os.getenv("HUGGINGFACE_TOKEN")
@@ -25,7 +23,7 @@ TOKEN = os.getenv("HUGGINGFACE_TOKEN")
 
 def main():
     if not TOKEN:
-        print("[ERREUR] Définissez HUGGINGFACE_TOKEN")
+        print("[ERREUR] Définissez HUGGINGFACE_TOKEN dans .env")
         sys.exit(1)
 
     if not DATA_DIR.exists():
@@ -37,7 +35,7 @@ def main():
 
     api = HfApi(token=TOKEN)
 
-    # Créer le repo s'il n'existe pas
+    # Creer le repo s'il n'existe pas
     try:
         create_repo(
             repo_id=HF_DATASET_REPO,
@@ -46,19 +44,19 @@ def main():
             exist_ok=True,
             private=False,
         )
-        print("✅ Repo créé (ou déjà existant)")
+        print("✅ Repo cree (ou deja existant)")
     except Exception as e:
-        print(f"⚠️ Erreur création repo: {e}")
+        print(f"⚠️  Erreur creation repo: {e}")
 
-    # Upload du contenu
-    api.upload_folder(
+    # Utiliser upload_large_folder pour les gros dossiers
+    print("⏳ Upload en cours (dossier volumineux)...")
+    api.upload_large_folder(
         folder_path=str(DATA_DIR),
         repo_id=HF_DATASET_REPO,
         repo_type="dataset",
-        token=TOKEN,
     )
 
-    print("✅ Upload terminé avec succès!")
+    print("✅ Upload termine avec succes!")
     print(f"🔗 URL: https://huggingface.co/datasets/{HF_DATASET_REPO}")
 
 
