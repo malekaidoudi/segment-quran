@@ -36,7 +36,8 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QSlider, QSpinBox, QProgressBar,
     QFileDialog, QListWidget, QGroupBox, QMessageBox, QSplitter,
     QListWidgetItem, QDialog, QDoubleSpinBox, QCheckBox, QScrollArea,
-    QStyledItemDelegate, QStyle, QInputDialog, QSizePolicy
+    QStyledItemDelegate, QStyle, QInputDialog, QSizePolicy,
+    QTreeWidget, QTreeWidgetItem, QHeaderView
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QUrl, QTimer, QTime, QRect, QPoint, QEvent
 from PyQt6.QtGui import QFont, QColor, QPainter, QBrush, QPolygon

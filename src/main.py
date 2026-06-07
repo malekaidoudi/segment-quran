@@ -297,128 +297,195 @@ class SettingsDialog(QDialog):
 # FENÊTRE PRINCIPALE
 # =============================================================================
 class LauncherWindow(QMainWindow):
-    """Fenêtre principale du launcher."""
+    """Fenêtre principale du launcher — Design professionnel sombre."""
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("🕌 Quran Segmentation — Launcher")
-        self.setMinimumSize(700, 500)
-        self.resize(700, 500)
-
+        self.setWindowTitle("Quran Segmentation  —  Launcher")
+        self.setMinimumSize(800, 580)
+        self.resize(800, 580)
         self._setup_ui()
+        self._apply_global_style()
+
+    def _apply_global_style(self):
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #1a1a2e;
+            }
+            QLabel {
+                color: #e0e0e0;
+            }
+            QGroupBox {
+                color: #a0aec0;
+                border: 1px solid #2d3748;
+                border-radius: 12px;
+                margin-top: 12px;
+                padding-top: 10px;
+                font-weight: bold;
+                font-size: 12px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 20px;
+                padding: 0 10px;
+                color: #a0aec0;
+            }
+        """)
 
     def _setup_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
-        layout.setSpacing(25)
-        layout.setContentsMargins(40, 30, 40, 30)
+        layout.setSpacing(20)
+        layout.setContentsMargins(50, 35, 50, 35)
 
-        # Titre
-        title = QLabel("🕌 Quran Segmentation")
-        title.setFont(QFont("Arial", 22, QFont.Weight.Bold))
+        # --- HEADER ---
+        header = QWidget()
+        header.setStyleSheet("background-color: #16213e; border-radius: 16px;")
+        header_layout = QVBoxLayout(header)
+        header_layout.setContentsMargins(30, 25, 30, 25)
+
+        title = QLabel("🕌  Quran Segmentation")
+        title.setFont(QFont("Inter", 26, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
-        layout.addWidget(title)
+        title.setStyleSheet("color: #ffffff; margin-bottom: 4px;")
+        header_layout.addWidget(title)
 
-        subtitle = QLabel("Outils de segmentation et découpage audio du Coran")
-        subtitle.setFont(QFont("Arial", 12))
+        subtitle = QLabel("Segmentation de pages  ·  Découpage audio  ·  Collaboration")
+        subtitle.setFont(QFont("Inter", 11))
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        subtitle.setStyleSheet("color: #7f8c8d; margin-bottom: 20px;")
-        layout.addWidget(subtitle)
+        subtitle.setStyleSheet("color: #8892b0; letter-spacing: 1px;")
+        header_layout.addWidget(subtitle)
 
-        # --- Boutons d'application ---
-        apps_group = QGroupBox("Lancer une application")
+        layout.addWidget(header)
+
+        # --- APPLICATIONS ---
+        apps_group = QGroupBox("APPLICATIONS")
         apps_layout = QVBoxLayout(apps_group)
-        apps_layout.setSpacing(20)
-        apps_layout.setContentsMargins(30, 25, 30, 25)
+        apps_layout.setSpacing(16)
+        apps_layout.setContentsMargins(25, 20, 25, 20)
 
-        # Desktop App
-        desktop_btn = QPushButton("🖥️  Desktop App — Segmentation des pages")
-        desktop_btn.setMinimumHeight(70)
-        desktop_btn.setFont(QFont("Arial", 13, QFont.Weight.Bold))
-        desktop_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                border-radius: 10px;
-                padding: 15px;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-        """)
-        desktop_btn.clicked.connect(self._launch_desktop)
-        apps_layout.addWidget(desktop_btn)
+        # Desktop App Card
+        desktop_card = self._create_app_card(
+            icon="🖥️",
+            title="Desktop App",
+            desc="Détection automatique des ayats, ajustement des polygones, correction des numéros de sourate.",
+            color="#3b82f6",
+            hover="#2563eb",
+            callback=self._launch_desktop
+        )
+        apps_layout.addWidget(desktop_card)
 
-        desktop_desc = QLabel("Détection automatique des ayats, ajustement des polygones, correction des numéros.")
-        desktop_desc.setStyleSheet("color: #666; font-size: 11px; padding-left: 10px;")
-        apps_layout.addWidget(desktop_desc)
-
-        # Audio Splitter
-        audio_btn = QPushButton("🎵 Audio Splitter — Découpage des récitations")
-        audio_btn.setMinimumHeight(70)
-        audio_btn.setFont(QFont("Arial", 13, QFont.Weight.Bold))
-        audio_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #8e44ad;
-                color: white;
-                border-radius: 10px;
-                padding: 15px;
-            }
-            QPushButton:hover {
-                background-color: #732d91;
-            }
-        """)
-        audio_btn.clicked.connect(self._launch_audio)
-        apps_layout.addWidget(audio_btn)
-
-        audio_desc = QLabel("Segmentation automatique par détection des silences, fusion, division et upload HF.")
-        audio_desc.setStyleSheet("color: #666; font-size: 11px; padding-left: 10px;")
-        apps_layout.addWidget(audio_desc)
+        # Audio Splitter Card
+        audio_card = self._create_app_card(
+            icon="🎵",
+            title="Audio Splitter",
+            desc="Segmentation par détection des silences, fusion, division, upload vers Hugging Face.",
+            color="#8b5cf6",
+            hover="#7c3aed",
+            callback=self._launch_audio
+        )
+        apps_layout.addWidget(audio_card)
 
         layout.addWidget(apps_group)
 
-        # --- Paramètres ---
-        settings_group = QGroupBox("Administration & Configuration")
-        settings_layout = QHBoxLayout(settings_group)
-        settings_layout.setContentsMargins(30, 15, 30, 15)
+        # --- CONFIGURATION ---
+        config_group = QGroupBox("CONFIGURATION")
+        config_layout = QHBoxLayout(config_group)
+        config_layout.setSpacing(20)
+        config_layout.setContentsMargins(25, 15, 25, 15)
 
-        settings_btn = QPushButton("⚙️ Paramètres")
-        settings_btn.setMinimumHeight(45)
+        settings_btn = QPushButton("⚙️  Paramètres")
+        settings_btn.setMinimumHeight(50)
+        settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         settings_btn.setStyleSheet("""
             QPushButton {
-                background-color: #f39c12;
-                color: white;
+                background-color: #f59e0b;
+                color: #1a1a2e;
                 font-weight: bold;
-                border-radius: 8px;
-                padding: 10px 20px;
+                font-size: 13px;
+                border-radius: 10px;
+                padding: 10px 28px;
             }
             QPushButton:hover {
-                background-color: #d68910;
+                background-color: #d97706;
+                color: #ffffff;
             }
         """)
         settings_btn.clicked.connect(self._open_settings)
-        settings_layout.addWidget(settings_btn)
+        config_layout.addWidget(settings_btn)
 
-        config_label = QLabel("Configurer les templates, dossier audio et paramètres de détection")
-        config_label.setStyleSheet("color: #666;")
-        settings_layout.addWidget(config_label, 1)
-
-        layout.addWidget(settings_group)
-
-        # Info config
         cfg = load_config()
-        config_info = QLabel(
-            f"📁 Audio: {cfg.get('audio_input_dir', '—')}  |  "
-            f"📐 Templates: {len([v for v in cfg.get('template_paths', {}).values() if v and os.path.exists(v)])}/4"
+        tpl_ok = sum(1 for v in cfg.get("template_paths", {}).values() if v and os.path.exists(v))
+        info = QLabel(
+            f"<span style='color:#64748b'>Templates configurés :</span> "
+            f"<span style='color:#38bdf8; font-weight:bold'>{tpl_ok}/4</span>  &nbsp;&nbsp;|&nbsp;&nbsp;  "
+            f"<span style='color:#64748b'>Audio input :</span> "
+            f"<span style='color:#38bdf8; font-weight:bold'>{Path(cfg.get('audio_input_dir', '—')).name}</span>"
         )
-        config_info.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        config_info.setStyleSheet("color: #95a5a6; font-size: 10px; margin-top: 10px;")
-        layout.addWidget(config_info)
+        info.setStyleSheet("font-size: 12px;")
+        config_layout.addWidget(info, 1)
 
-        # Spacer
+        layout.addWidget(config_group)
+
+        # --- FOOTER ---
+        footer = QLabel(
+            "Sélectionnez une application ci-dessus pour commencer le travail de segmentation."
+        )
+        footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        footer.setStyleSheet("color: #475569; font-size: 11px; margin-top: 8px;")
+        layout.addWidget(footer)
         layout.addStretch()
+
+    def _create_app_card(self, icon: str, title: str, desc: str, color: str, hover: str, callback):
+        """Crée une carte d'application cliquable."""
+        card = QWidget()
+        card.setCursor(Qt.CursorShape.PointingHandCursor)
+        card.setStyleSheet(f"""
+            QWidget {{
+                background-color: #0f172a;
+                border: 2px solid {color};
+                border-radius: 14px;
+            }}
+            QWidget:hover {{
+                background-color: #1e293b;
+                border: 2px solid {hover};
+            }}
+        """)
+        card_layout = QHBoxLayout(card)
+        card_layout.setContentsMargins(25, 20, 25, 20)
+        card_layout.setSpacing(20)
+
+        icon_label = QLabel(icon)
+        icon_label.setFont(QFont("Segoe UI Emoji", 32))
+        icon_label.setStyleSheet("border: none; background: transparent;")
+        card_layout.addWidget(icon_label)
+
+        text_layout = QVBoxLayout()
+        text_layout.setSpacing(6)
+
+        title_label = QLabel(title)
+        title_label.setFont(QFont("Inter", 14, QFont.Weight.Bold))
+        title_label.setStyleSheet(f"color: {color}; border: none; background: transparent;")
+        text_layout.addWidget(title_label)
+
+        desc_label = QLabel(desc)
+        desc_label.setFont(QFont("Inter", 10))
+        desc_label.setStyleSheet("color: #94a3b8; border: none; background: transparent;")
+        desc_label.setWordWrap(True)
+        text_layout.addWidget(desc_label)
+
+        card_layout.addLayout(text_layout, 1)
+
+        arrow = QLabel("›")
+        arrow.setFont(QFont("Inter", 24, QFont.Weight.Bold))
+        arrow.setStyleSheet(f"color: {color}; border: none; background: transparent;")
+        card_layout.addWidget(arrow)
+
+        # Clic sur toute la carte
+        card.mousePressEvent = lambda ev: callback()
+
+        return card
 
     def _launch_desktop(self):
         """Lance l'application Desktop."""

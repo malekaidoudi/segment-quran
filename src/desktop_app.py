@@ -30,6 +30,12 @@ from PyQt6.QtGui import (
 
 import data_manager
 
+try:
+    from huggingface_hub import HfApi, upload_folder
+    HF_AVAILABLE = True
+except ImportError:
+    HF_AVAILABLE = False
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -1362,6 +1368,10 @@ class QuranEditor(QMainWindow):
         save_btn = QPushButton("💾 Sauver")
         save_btn.setObjectName("primary")
         save_btn.clicked.connect(self.save_json)
+        upload_btn = QPushButton("📤 Upload HF")
+        upload_btn.setToolTip("Uploader les annotations vers Hugging Face")
+        upload_btn.setStyleSheet("background-color: #FF9800; color: white; font-weight: bold;")
+        upload_btn.clicked.connect(self._upload_annotations_to_hf)
         undo_btn = QPushButton("↩")
         undo_btn.setFixedWidth(36)
         undo_btn.clicked.connect(self.undo)
@@ -1369,6 +1379,7 @@ class QuranEditor(QMainWindow):
         redo_btn.setFixedWidth(36)
         redo_btn.clicked.connect(self.redo)
         action_row.addWidget(save_btn, 1)
+        action_row.addWidget(upload_btn)
         action_row.addWidget(undo_btn)
         action_row.addWidget(redo_btn)
         left_layout.addLayout(action_row)
@@ -1926,7 +1937,64 @@ class QuranEditor(QMainWindow):
         
         self.has_unsaved_changes = False
         self.statusBar().showMessage("✅ Sauvegardé!")
-    
+
+    def _upload_annotations_to_hf(self):
+        """Uploader le dossier annotations vers Hugging Face."""
+        if not HF_AVAILABLE:
+            QMessageBox.warning(
+                self, "HF non disponible",
+                "huggingface_hub n'est pas installé.\npip install huggingface_hub"
+            )
+            return
+
+        token = os.getenv("HUGGINGFACE_TOKEN")
+        if not token:
+            QMessageBox.warning(
+                self, "Token manquant",
+                "Définissez HUGGINGFACE_TOKEN dans le fichier .env"
+            )
+            return
+
+        repo = os.getenv("HF_DATASET_REPO", "malekaidoudi/segment-quran-data")
+        annotations_dir = Config.JSON_DIR
+
+        if not os.path.exists(annotations_dir):
+            QMessageBox.warning(self, "Dossier vide", f"Aucun dossier annotations trouvé:\n{annotations_dir}")
+            return
+
+        json_files = [f for f in os.listdir(annotations_dir) if f.endswith(".json")]
+        if not json_files:
+            QMessageBox.warning(self, "Aucun fichier", f"Aucun fichier JSON dans:\n{annotations_dir}")
+            return
+
+        reply = QMessageBox.question(
+            self,
+            "Confirmer l'upload",
+            f"Uploader {len(json_files)} fichiers JSON vers Hugging Face?\n\n"
+            f"Repo: {repo}\n"
+            f"Dossier: annotations/\n\n"
+            f"Cela peut prendre quelques minutes.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                api = HfApi(token=token)
+                upload_folder(
+                    folder_path=annotations_dir,
+                    path_in_repo="annotations",
+                    repo_id=repo,
+                    repo_type="dataset",
+                )
+                QMessageBox.information(
+                    self, "Upload réussi",
+                    f"✅ {len(json_files)} annotations uploadées!\n\n"
+                    f"Votre collègue les verra au prochain lancement."
+                )
+                self.statusBar().showMessage("✅ Annotations uploadées sur HF")
+            except Exception as e:
+                QMessageBox.critical(self, "Erreur upload", str(e))
+
     def _update_starts_at_ayah(self):
         """Met à jour starts_at_ayah depuis le premier ayat numéroté."""
         ayats = self.data.get("ayats", [])
