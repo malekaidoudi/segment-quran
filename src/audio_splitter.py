@@ -506,6 +506,83 @@ def format_time_ms_detailed(ms: int) -> str:
     return f"{minutes}:{seconds:04.1f}"
 
 
+def _load_audio(path: str) -> AudioSegment:
+    """
+    Charge un fichier audio avec pydub, robuste aux chemins contenant
+    des caractères non-ASCII (arabe, symboles, etc.).
+
+    Sur Windows, ffmpeg peut échouer à ouvrir un chemin avec des caractères
+    spéciaux via subprocess. Cette fonction contourne le problème en
+    passant un file-like object lorsque c'est nécessaire.
+    """
+    ext = os.path.splitext(path)[1].lower().lstrip('.')
+    if not ext:
+        ext = 'mp3'
+    try:
+        path.encode('ascii')
+        return AudioSegment.from_file(path)
+    except UnicodeEncodeError:
+        with open(path, 'rb') as f:
+            return AudioSegment.from_file(f, format=ext)
+
+
+def _check_ffmpeg() -> Tuple[bool, str]:
+    """
+    Vérifie que ffmpeg et ffprobe sont accessibles.
+    Cherche dans le PATH puis dans les emplacements Windows usuels.
+    Configure pydub automatiquement si trouvé hors PATH.
+
+    Returns:
+        (ok, message) : ok=True si tout va bien, sinon message d'erreur.
+    """
+    ffmpeg_cmd = shutil.which("ffmpeg")
+    ffprobe_cmd = shutil.which("ffprobe")
+
+    # Si non trouvés dans le PATH, chercher dans les emplacements usuels Windows
+    if not ffmpeg_cmd or not ffprobe_cmd:
+        usual_paths = [
+            r"C:\ffmpeg\bin",
+            r"C:\Program Files\ffmpeg\bin",
+            r"C:\Program Files (x86)\ffmpeg\bin",
+            os.path.expanduser(r"~\ffmpeg\bin"),
+            os.path.expanduser(r"~\AppData\Local\ffmpeg\bin"),
+        ]
+        for p in usual_paths:
+            ffmpeg_exe = os.path.join(p, "ffmpeg.exe")
+            ffprobe_exe = os.path.join(p, "ffprobe.exe")
+            if os.path.isfile(ffmpeg_exe) and os.path.isfile(ffprobe_exe):
+                # Configurer pydub pour utiliser ces chemins
+                AudioSegment.converter = ffmpeg_exe
+                if hasattr(AudioSegment, 'ffprobe'):
+                    AudioSegment.ffprobe = ffprobe_exe
+                # Mettre à jour aussi pydub.utils si besoin
+                from pydub import utils as pydub_utils
+                pydub_utils.get_prober_name = lambda: ffprobe_exe
+                return True, ""
+
+    if ffmpeg_cmd and ffprobe_cmd:
+        return True, ""
+
+    missing = []
+    if not ffmpeg_cmd:
+        missing.append("ffmpeg")
+    if not ffprobe_cmd:
+        missing.append("ffprobe")
+    msg = (
+        "Les outils suivants sont introuvables : "
+        + ", ".join(missing) + ".\n\n"
+        "Veuillez installer ffmpeg et l'ajouter au PATH système.\n"
+        "1. Téléchargez ffmpeg depuis https://www.gyan.dev/ffmpeg/builds/\n"
+        "   (ex: ffmpeg-release-essentials.7z)\n"
+        "2. Extrayez le contenu dans C:\\ffmpeg\n"
+        "3. Ajoutez C:\\ffmpeg\\bin au PATH système :\n"
+        "   Panneau de configuration → Système → Paramètres système avancés\n"
+        "   → Variables d'environnement → Path → Modifier → Nouveau\n"
+        "   → C:\\ffmpeg\\bin  → OK → Redémarrez l'application."
+    )
+    return False, msg
+
+
 def get_output_dir(juz_mode: bool, juz_num: int = 0, surah_num: int = 0) -> str:
     """
     Retourne le chemin du dossier de sortie selon le mode.
@@ -1173,7 +1250,7 @@ class AudioSplitterWorker(QThread):
         try:
             # 1. Chargement du fichier audio
             self.progress.emit(5, "Chargement du fichier audio...")
-            audio = AudioSegment.from_file(self.audio_path)
+            audio = _load_audio(self.audio_path)
             
             if self._is_cancelled:
                 self.cancelled.emit()
@@ -1631,7 +1708,7 @@ class RecoverSegmentDialog(QDialog):
         total_ms = 0
         for mp3_file in all_files:
             try:
-                audio = AudioSegment.from_file(mp3_file)
+                audio = _load_audio(mp3_file)
                 total_ms += len(audio)
             except:
                 pass
@@ -1645,7 +1722,7 @@ class RecoverSegmentDialog(QDialog):
                     try:
                         backup_path = file_info.get('backup', '')
                         if os.path.exists(backup_path):
-                            audio = AudioSegment.from_file(backup_path)
+                            audio = _load_audio(backup_path)
                             # Le segment perdu est probablement autour d'ici
                             self.estimated_start = max(0, total_ms - 60000)  # 1 min avant
                             self.estimated_end = total_ms + 60000  # 1 min après
@@ -1958,7 +2035,7 @@ class RecoverSegmentDialog(QDialog):
         try:
             start_ms, end_ms = self._get_zone_bounds()
             
-            audio = AudioSegment.from_file(self.audio_path)
+            audio = _load_audio(self.audio_path)
             # Limiter à la durée de l'audio
             end_ms = min(end_ms, len(audio))
             
@@ -2305,7 +2382,7 @@ class AudioSplitterWindow(QMainWindow):
         while time.time() - start_wait < max_wait:
             if os.path.exists(file_path):
                 try:
-                    test_audio = AudioSegment.from_file(file_path)
+                    test_audio = _load_audio(file_path)
                     if len(test_audio) > 0:
                         return True
                 except:
@@ -2765,7 +2842,7 @@ class AudioSplitterWindow(QMainWindow):
             # Obtenir la durée du fichier audio
             try:
                 if PYDUB_AVAILABLE:
-                    audio = AudioSegment.from_file(file_path)
+                    audio = _load_audio(file_path)
                     duration_ms = len(audio)
                     duration_sec = duration_ms / 1000
                 else:
@@ -2860,6 +2937,12 @@ class AudioSplitterWindow(QMainWindow):
     def _start_processing(self):
         """Démarre le traitement audio."""
         if not self.current_file:
+            return
+        
+        # Vérifier que ffmpeg est disponible (indispensable sur Windows)
+        ffmpeg_ok, ffmpeg_msg = _check_ffmpeg()
+        if not ffmpeg_ok:
+            QMessageBox.critical(self, "ffmpeg introuvable", ffmpeg_msg)
             return
         
         if not PYDUB_AVAILABLE:
@@ -3897,7 +3980,7 @@ class AudioSplitterWindow(QMainWindow):
                 self._update_progress(progress, f"🔗 Chargement segment {i+1}/{total_files}...",
                                       indices[i], op_progress)
                 
-                segment = AudioSegment.from_file(path)
+                segment = _load_audio(path)
                 if i > 0 and silence_duration > 0:
                     combined += silence_segment
                 combined += segment
@@ -4425,7 +4508,7 @@ class AudioSplitterWindow(QMainWindow):
             
             # Charger le segment pour le diviser
             self._update_progress(10, "✂️ Chargement du segment...", current_idx, 0.1)
-            audio = AudioSegment.from_file(file_path)
+            audio = _load_audio(file_path)
             split_ms = int(split_point * 1000)
             
             # Diviser l'audio avec marge de sécurité
@@ -5589,7 +5672,7 @@ class AdminPanelDialog(QDialog):
             name = os.path.basename(f)
             try:
                 from pydub import AudioSegment
-                dur = len(AudioSegment.from_file(f)) / 1000
+                dur = len(_load_audio(f)) / 1000
                 display = f"{name}  ({int(dur//60)}:{int(dur%60):02d})"
             except Exception:
                 display = name

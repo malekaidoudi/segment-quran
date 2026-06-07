@@ -65,6 +65,33 @@ segment-quran/
 
 > **Note :** Le dossier `data/` n'est pas inclus dans le repository Git (trop volumineux). Les données sont téléchargées automatiquement depuis Hugging Face au premier lancement.
 
+## ⚙️ Prérequis système
+
+### ffmpeg (obligatoire pour le découpage audio)
+
+Le module **Audio Splitter** utilise `pydub` qui dépend de **ffmpeg** et **ffprobe** pour lire et exporter les fichiers MP3.
+
+**Windows**
+1. Téléchargez ffmpeg : [gyan.dev/ffmpeg/builds](https://www.gyan.dev/ffmpeg/builds/) (`ffmpeg-release-essentials.7z`)
+2. Extrayez dans `C:\ffmpeg`
+3. Ajoutez `C:\ffmpeg\bin` au **PATH système** :
+   - `Panneau de configuration → Système → Paramètres système avancés → Variables d'environnement → Path → Modifier → Nouveau → C:\ffmpeg\bin → OK`
+4. **Redémarrez** l'application (le PATH n'est pas rechargé à chaud).
+
+> L'application détecte automatiquement ffmpeg s'il est installé dans `C:\ffmpeg\bin` ou `C:\Program Files\ffmpeg\bin` même sans redémarrage.
+
+**macOS**
+```bash
+brew install ffmpeg
+```
+
+**Linux**
+```bash
+sudo apt-get install ffmpeg
+```
+
+---
+
 ## ⚙️ Installation
 
 ### 1. Cloner le repository
@@ -279,6 +306,21 @@ Vous copiez ensuite ses fichiers dans votre dossier `data/annotations/`.
 - **Backup réguliers** : Avant de fusionner, gardez une copie de votre dossier `data/annotations/`
 
 ## 🐛 Dépannage
+
+### Erreur : `WinError 2` — "Le fichier spécifié est introuvable" (Audio Splitter)
+
+Cette erreur apparaît au clic sur **Démarrer** lorsque **ffmpeg** ou **ffprobe** n'est pas trouvé par `pydub`.
+
+**Solution :**
+1. Vérifiez que ffmpeg est installé (voir [Prérequis système](#prérequis-système))
+2. Vérifiez dans un terminal :
+   ```bash
+   ffmpeg -version
+   ffprobe -version
+   ```
+3. S'ils sont introuvables, ajoutez `C:\ffmpeg\bin` au **PATH système** et **redémarrez l'ordinateur**.
+
+> Depuis la version mise à jour, l'application affiche automatiquement un dialogue explicite si ffmpeg manque, avec les instructions d'installation.
 
 ### Erreur : "HUGGINGFACE_TOKEN manquante"
 Créez le fichier `.env` à la racine du projet :
