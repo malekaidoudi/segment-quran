@@ -3892,12 +3892,28 @@ class AudioSplitterWindow(QMainWindow):
             self.playback_label.setText("🔄 Fin de la sourate!")
             self.playback_label.setStyleSheet("color: blue; font-weight: bold;")
     
+    def _release_media_player(self):
+        """
+        Libère le verrou que QMediaPlayer maintient sur un fichier MP3 sous Windows.
+        Un simple .stop() ne suffit pas : il faut aussi vider la source et laisser
+        le temps au backend de libérer le handle du fichier.
+        """
+        self.media_player.stop()
+        self.media_player.setSource(QUrl())
+        # Laisser le backend audio (Windows Media Foundation) libérer le handle
+        for _ in range(5):
+            QApplication.processEvents()
+            time.sleep(0.05)
+
     def _merge_selected_segments(self):
         """Fusionne les segments sélectionnés en un seul fichier."""
         if not PYDUB_AVAILABLE:
             QMessageBox.warning(self, "Erreur", "pydub n'est pas disponible")
             return
-        
+
+        # Libérer tout verrou sur les fichiers audio avant suppression
+        self._release_media_player()
+
         selected_items = self.segments_list.selectedItems()
         if len(selected_items) < 2:
             QMessageBox.warning(
@@ -4279,12 +4295,12 @@ class AudioSplitterWindow(QMainWindow):
         if reply == QMessageBox.StandardButton.No:
             return
         
-        # Arrêter la lecture si en cours
-        self.media_player.stop()
-        
+        # Libérer le verrou sur les fichiers audio avant suppression
+        self._release_media_player()
+
         try:
             output_dir = self._get_output_dir()
-            
+
             self._update_progress(10, "🗑️ Suppression du fichier...")
             os.remove(file_path)
             
@@ -4457,9 +4473,9 @@ class AudioSplitterWindow(QMainWindow):
             QMessageBox.warning(self, "Erreur", f"Fichier non trouvé: {file_path}")
             return
         
-        # Arrêter la lecture si en cours
-        self.media_player.stop()
-        
+        # Libérer le verrou sur les fichiers audio avant toute suppression
+        self._release_media_player()
+
         try:
             # Obtenir le texte de l'ayat pour l'afficher dans le dialogue
             item_text = item.text()
