@@ -39,36 +39,39 @@ Pipeline hybride pour la détection automatique des ayats du Coran dans un Musha
 ## 📁 Structure du Projet
 
 ```
-mushaf-qalun-detector/
-├── data/
-│   ├── images/          # Pages du Mushaf (PNG)
-│   ├── ayats.csv      # 6236 ayats avec métadonnées
-│   └── marker.png     # Template du marqueur d'ayah
-├── models/
-│   └── best.pt        # Modèle YOLOv8 (optionnel)
+segment-quran/
+├── data/                      # Données (téléchargées auto depuis Hugging Face)
+│   ├── images/                # Pages du Mushaf (PNG)
+│   ├── audio/                 # Fichiers audio découpés
+│   ├── annotations/           # Annotations JSON par page
+│   ├── ayats.csv              # 6236 ayats avec métadonnées
+│   ├── name_sourat.csv        # Noms des sourates
+│   ├── sommaire.csv           # Sommaire
+│   ├── marker.png             # Template du marqueur d'ayah
+│   ├── entete.png             # Image d'en-tête
+│   └── qalun.pdf              # PDF du Mushaf
 ├── src/
-│   ├── template_detect.py   # Template Matching + NMS
-│   ├── yolo_filter.py       # Filtrage YOLOv8
-│   ├── align_ayahs.py       # Alignement avec CSV
-│   └── main.py              # Pipeline principal
-├── web/
-│   ├── index.html      # Interface web
-│   ├── viewer.js       # Visualisation interactive
-│   └── style.css       # Styles
-├── output/
-│   ├── result.json     # Résultats finaux
-│   └── debug_*.png     # Images debug (optionnel)
+│   ├── audio_splitter.py      # Découpage audio
+│   ├── ayah_segmenter_final.py # Application Streamlit
+│   ├── desktop_app.py         # Application desktop
+│   ├── desktop_app_resp.py    # Version responsive
+│   ├── version_ameliorer.py   # Version améliorée
+│   └── data_manager.py        # Gestion des données HF
 ├── requirements.txt
+├── .env.example               # Exemple de variables d'environnement
+├── .gitignore
 └── README.md
 ```
+
+> **Note :** Le dossier `data/` n'est pas inclus dans le repository Git (trop volumineux). Les données sont téléchargées automatiquement depuis Hugging Face au premier lancement.
 
 ## ⚙️ Installation
 
 ### 1. Cloner le repository
 
 ```bash
-git clone <repository-url>
-cd mushaf-qalun-detector
+git clone https://github.com/malekaidoudi/segment-quran.git
+cd segment-quran
 ```
 
 ### 2. Créer un environnement virtuel (recommandé)
@@ -86,184 +89,97 @@ venv\Scripts\activate     # Windows
 pip install -r requirements.txt
 ```
 
-### 4. Vérifier l'installation
+### 4. Configurer Hugging Face
+
+Créez un fichier `.env` à la racine du projet :
 
 ```bash
-python src/main.py --help
+cp .env.example .env
 ```
+
+Éditez `.env` et remplacez `hf_xxx` par votre token Hugging Face :
+
+```bash
+HUGGINGFACE_TOKEN=hf_votre_token_ici
+HF_DATASET_REPO=malekaidoudi/segment-quran-data
+```
+
+> Obtenez votre token sur [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
+
+### 5. Lancer une application
+
+```bash
+# Application Streamlit
+streamlit run src/ayah_segmenter_final.py
+
+# Application desktop
+python src/desktop_app.py
+
+# Découpage audio
+python src/audio_splitter.py
+```
+
+> **Note :** Au premier lancement, les données (~6 GB) seront téléchargées automatiquement depuis Hugging Face.
 
 ## 🚀 Utilisation
 
-### Traiter une seule page
+### Application Streamlit (Segmentation des Ayahs)
 
 ```bash
-python src/main.py --image data/images/page_001.png --debug
+streamlit run src/ayah_segmenter_final.py
 ```
 
-### Traiter toutes les pages
-
-```bash
-python src/main.py --all --images-dir data/images --debug
-```
-
-### Options avancées
-
-```bash
-# Seuil personnalisé pour template matching
-python src/main.py --all --threshold 0.8
-
-# Sans YOLO (template matching uniquement)
-python src/main.py --all --no-yolo
-
-# Seuil YOLO personnalisé
-python src/main.py --all --yolo-conf 0.7
-
-# Pattern de fichiers différent
-python src/main.py --all --pattern "*.jpg"
-```
-
-### Visualiser les résultats
-
-Ouvrez `web/index.html` dans un navigateur web pour visualiser les résultats avec overlay interactif.
-
-## 📊 Format du JSON de sortie
-
-```json
-{
-  "metadata": {
-    "total_ayahs": 6236,
-    "matched_ayahs": 6150,
-    "total_pages": 604,
-    "detection_rate": 0.986
-  },
-  "ayahs": [
-    {
-      "surah": 1,
-      "ayah": 1,
-      "page": 1,
-      "x": 120,
-      "y": 250,
-      "w": 32,
-      "h": 32,
-      "confidence": 0.95,
-      "polygon": [[120, 250], [152, 250], [152, 282], [120, 282]],
-      "matched": true
-    }
-  ]
-}
-```
-
-## 📝 Format du CSV (ayats.csv)
-
-```csv
-id,surah,ayah,page
-1,1,1,1
-2,1,2,1
-...
-6236,114,6,604
-```
-
-## 🔧 Configuration
-
-### Paramètres modifiables
-
-| Paramètre | Description | Défaut |
-|-----------|-------------|--------|
-| `--threshold` | Seuil template matching | 0.7 |
-| `--yolo-conf` | Seuil confiance YOLO | 0.5 |
-| `--multi-scale` | Multi-échelle template | true |
-| `--overlap-threshold` | Seuil NMS | 0.3 |
-
-### Environnement
-
-Créez un fichier `.env` pour les variables d'environnement :
-
-```bash
-LOG_LEVEL=INFO
-CUDA_VISIBLE_DEVICES=0  # Pour GPU
-```
-
-## 🌐 Interface Web
-
-L'interface web permet de :
+Permet de :
 - Naviguer entre les pages du Mushaf
+- Segmenter et annoter les ayahs
 - Visualiser les polygones de détection
 - Afficher les numéros d'ayats
-- Ajuster l'opacité des overlays
-- Voir les détails de chaque ayah au survol
 
-**Navigation clavier :**
-- `←` : Page précédente
-- `→` : Page suivante
-
-## 📸 Mode Debug
-
-Activez `--debug` pour générer des images annotées :
+### Application Desktop
 
 ```bash
-python src/main.py --all --debug
+python src/desktop_app.py
 ```
 
-Cela crée des images avec :
-- Rectangles autour des détections
-- Scores de confiance
-- Numéros de détection
+Interface desktop pour la segmentation et l'annotation.
 
-## 🧪 Tests
+### Découpage Audio
 
 ```bash
-# Tests unitaires
-pytest tests/
-
-# Vérifier le style
-flake8 src/
-black src/ --check
+python src/audio_splitter.py
 ```
+
+Découpe les fichiers audio selon les annotations.
+
+## � Données sur Hugging Face
+
+Le dossier `data/` (~6 GB) est stocké sur Hugging Face pour éviter de surcharger le repository Git.
+
+### Téléchargement automatique
+
+Les applications téléchargent automatiquement les données au premier lancement via `data_manager.py`.
+
+### Uploader des données (pour les mainteneurs)
+
+Si vous modifiez les données localement et souhaitez mettre à jour le dataset Hugging Face :
+
+```bash
+python upload_to_hf.py
+```
+
+> Nécessite le token Hugging Face configuré dans `.env`.
 
 ## 🐛 Dépannage
 
-### Erreur : "Marqueur non trouvé"
-Vérifiez que `data/marker.png` existe et correspond au marqueur d'ayah de votre Mushaf.
-
-### Erreur : "YOLO non disponible"
-YOLOv8 est optionnel. Le pipeline fonctionne avec le template matching uniquement.
-Pour installer YOLO :
+### Erreur : "HUGGINGFACE_TOKEN manquante"
+Créez le fichier `.env` à la racine du projet :
 ```bash
-pip install ultralytics
+cp .env.example .env
 ```
+Puis éditez-le avec votre token.
 
-### Détections manquantes
-- Réduisez `--threshold` (ex: 0.6)
-- Activez `--multi-scale`
-- Vérifiez que le marker.png correspond bien
-
-### Faux positifs
-- Augmentez `--threshold` (ex: 0.8)
-- Utilisez `--yolo-conf` plus élevé
-- Vérifiez avec `--debug`
-
-## 📚 Architecture du Code
-
-### `template_detect.py`
-- `Detection` : Classe de données pour une détection
-- `match_template()` : Template matching avec OpenCV
-- `non_max_suppression()` : Élimination des doublons
-- `detect_markers()` : Pipeline de détection complet
-
-### `yolo_filter.py`
-- `YoloFilter` : Classe pour filtrer avec YOLOv8
-- `heuristic_filter()` : Filtre fallback sans YOLO
-- `validate_region()` : Validation d'une région spécifique
-
-### `align_ayahs.py`
-- `AyahAligner` : Aligne les détections avec le CSV
-- `sort_detections()` : Tri Y croissant, X décroissant
-- `export_to_json()` : Export des résultats
-
-### `main.py`
-- `QuranAyahDetector` : Pipeline complet
-- Gestion des arguments CLI
-- Coordination des étapes
+### Erreur : "Données non trouvées"
+Vérifiez votre connexion internet et le token Hugging Face. Les données se téléchargent automatiquement depuis Hugging Face.
 
 ## 🤝 Contribution
 
