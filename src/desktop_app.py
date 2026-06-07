@@ -58,6 +58,46 @@ class Config:
 # Divisions pour le hizb
 DIVISIONS = ["start", "1/8", "1/4", "3/8", "1/2", "5/8", "3/4", "7/8"]
 
+
+def _load_app_config():
+    """Charge la configuration externe si elle existe."""
+    config_path = Path(__file__).resolve().parent.parent / "data" / "config.json"
+    if config_path.exists():
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+
+            # Templates
+            tpl = cfg.get("template_paths", {})
+            if tpl.get("entete") and Path(tpl["entete"]).exists():
+                Config.HEADER_PATH = str(Path(tpl["entete"]).resolve())
+            if tpl.get("marker") and Path(tpl["marker"]).exists():
+                Config.MARKER_PATH = str(Path(tpl["marker"]).resolve())
+
+            # Détection
+            dp = cfg.get("detection_params", {})
+            if "threshold" in dp:
+                Config.THRESHOLD = dp["threshold"]
+            if "padding_left_even" in dp:
+                Config.PADDING_LEFT_EVEN = dp["padding_left_even"]
+            if "padding_right_even" in dp:
+                Config.PADDING_RIGHT_EVEN = dp["padding_right_even"]
+            if "padding_left_odd" in dp:
+                Config.PADDING_LEFT_ODD = dp["padding_left_odd"]
+            if "padding_right_odd" in dp:
+                Config.PADDING_RIGHT_ODD = dp["padding_right_odd"]
+            if "start_y" in dp:
+                Config.START_Y = dp["start_y"]
+            if "line_height" in dp:
+                Config.LINE_HEIGHT = dp["line_height"]
+            if "inter_height" in dp:
+                Config.INTER_HEIGHT = dp["inter_height"]
+        except Exception:
+            pass
+
+
+_load_app_config()
+
 # Base de données des sourates (globale pour le moteur de détection)
 SURAH_DB = {}
 

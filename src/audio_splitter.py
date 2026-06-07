@@ -116,6 +116,23 @@ class Config:
     SESSION_FILE = os.path.join(_BASE, "audio", "session.json")
 
 
+def _load_audio_config():
+    """Charge la configuration externe si elle existe."""
+    config_path = Path(__file__).resolve().parent.parent / "data" / "config.json"
+    if config_path.exists():
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+            audio_dir = cfg.get("audio_input_dir", "")
+            if audio_dir and Path(audio_dir).exists():
+                Config.AUDIO_INPUT_DIR = str(Path(audio_dir).resolve())
+        except Exception:
+            pass
+
+
+_load_audio_config()
+
+
 # =============================================================================
 # HUGGING FACE SYNC UTILITIES
 # =============================================================================
