@@ -37,7 +37,11 @@ def ensure_data() -> Path:
     S'assure que le dossier data/ existe.
     Si non, télécharge le dataset depuis Hugging Face.
     """
-    if DATA_DIR.exists() and any(DATA_DIR.iterdir()):
+    # Vérifier que les données essentielles existent (images et annotations)
+    images_dir = DATA_DIR / "images"
+    annotations_dir = DATA_DIR / "annotations"
+    if (images_dir.exists() and any(images_dir.iterdir()) and
+            annotations_dir.exists() and any(annotations_dir.iterdir())):
         return DATA_DIR
 
     snapshot_download = _ensure_huggingface_hub()

@@ -20,6 +20,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
+import data_manager
+
 # =============================================================================
 # CONFIG
 # =============================================================================
@@ -533,6 +535,9 @@ class LauncherWindow(QMainWindow):
 # POINT D'ENTRÉE
 # =============================================================================
 def main():
+    # S'assurer que les données sont téléchargées avant de lancer l'interface
+    data_manager.ensure_data()
+
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
