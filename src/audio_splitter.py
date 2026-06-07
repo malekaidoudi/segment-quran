@@ -5416,8 +5416,8 @@ class AdminPanelDialog(QDialog):
         super().__init__(parent)
         self.parent_window = parent
         self.setWindowTitle("🔧 Panneau Admin — Vérifier / Écouter / Supprimer")
-        self.setMinimumSize(750, 650)
-        self.resize(850, 700)
+        self.setMinimumSize(900, 800)
+        self.resize(1000, 850)
         
         # Lecteur audio
         self._audio_output = QAudioOutput()
@@ -5510,6 +5510,27 @@ class AdminPanelDialog(QDialog):
         
         layout.addWidget(player_group)
         
+        # --- SECTION PRÉVISUALISATION AYAT ---
+        preview_group = QGroupBox("🖼️ Prévisualisation — Sélectionnez un fichier audio")
+        preview_layout = QVBoxLayout(preview_group)
+        
+        self.preview_text = QLabel("Sélectionnez un fichier MP3 pour voir l'image de l'ayat")
+        self.preview_text.setStyleSheet("color: #555; font-size: 12px; font-style: italic;")
+        self.preview_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        preview_layout.addWidget(self.preview_text)
+        
+        self.preview_image = QLabel()
+        self.preview_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_image.setMinimumHeight(200)
+        self.preview_image.setStyleSheet("background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 4px;")
+        self.preview_image.setText("📖 Image de l'ayat")
+        preview_layout.addWidget(self.preview_image)
+        
+        layout.addWidget(preview_group)
+        
+        # Connecter la sélection de MP3 à la prévisualisation
+        self.mp3_list.currentItemChanged.connect(self._on_mp3_selected_for_preview)
+        
         # Boutons globaux
         btn_layout = QHBoxLayout()
         
@@ -5574,6 +5595,63 @@ class AdminPanelDialog(QDialog):
         self.player_info.setText(f"🎵 Sourate {surah_num} — {len(mp3_files)} fichier(s). Double-cliquez pour lire.")
         self.play_audio_btn.setEnabled(True)
         self.auto_play_btn.setEnabled(True)
+    
+    def _on_mp3_selected_for_preview(self, current: QListWidgetItem, previous: QListWidgetItem):
+        """Affiche l'image de l'ayat correspondant au MP3 sélectionné (logique existante réutilisée)."""
+        if not current:
+            self.preview_text.setText("Sélectionnez un fichier MP3 pour voir l'image de l'ayat")
+            self.preview_image.setText("📖 Image de l'ayat")
+            return
+        
+        file_path = current.data(Qt.ItemDataRole.UserRole)
+        if not file_path:
+            return
+        
+        # Extraire la sourate depuis le dossier parent (ex: .../001/ → 1)
+        try:
+            surah_str = os.path.basename(self._current_surah_dir)
+            surah = int(surah_str)
+        except (ValueError, AttributeError):
+            self.preview_text.setText("❌ Impossible de déterminer la sourate")
+            return
+        
+        # Extraire l'ayat depuis le nom du fichier (ex: 001.mp3 → 1, 000.mp3 → Basmala=0)
+        filename = os.path.basename(file_path)
+        try:
+            ayah_str = filename.replace(".mp3", "").strip()
+            ayah = int(ayah_str)
+        except ValueError:
+            self.preview_text.setText(f"❌ Nom de fichier non reconnu: {filename}")
+            return
+        
+        # Utiliser la logique existante du script
+        self.preview_text.setText(f"⏳ Chargement S{surah}:A{ayah}...")
+        QApplication.processEvents()
+        
+        pixmap = get_cached_ayat_image(surah, ayah)
+        
+        if pixmap and not pixmap.isNull():
+            max_width = 500
+            if pixmap.width() > max_width:
+                scaled = pixmap.scaledToWidth(max_width, Qt.TransformationMode.SmoothTransformation)
+            else:
+                scaled = pixmap
+            self.preview_image.setPixmap(scaled)
+            
+            # Récupérer le texte de l'ayat via la logique existante
+            quran_df = load_quran_text()
+            if ayah == 0:
+                ayat_label = "Basmala"
+                ayat_text = "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ"
+            else:
+                ayat_label = f"Ayat {ayah}"
+                ayat_text = get_ayat_text(quran_df, surah, ayah) if quran_df is not None else ""
+            
+            self.preview_text.setText(f"Sourate {surah}, {ayat_label}  •  {ayat_text[:80]}{'...' if len(ayat_text) > 80 else ''}")
+        else:
+            ayat_display = "Basmala" if ayah == 0 else f"Ayat {ayah}"
+            self.preview_image.setText(f"❌ Image non disponible\nS{surah}:{ayat_display}")
+            self.preview_text.setText(f"Sourate {surah}, {ayat_display} — Image introuvable dans le cache")
     
     def _play_selected_mp3(self, item: QListWidgetItem):
         """Joue le MP3 sélectionné dans la liste."""
