@@ -1,0 +1,29 @@
+# Dépendances du projet Mushaf Qalun Ayah Detector
+# Python 3.10+
+
+# Core dependencies
+opencv-python>=4.8.0
+numpy>=1.24.0
+pillow>=10.0.0
+
+# YOLOv8 (optionnel mais recommandé)
+ultralytics>=8.0.0
+
+# Data processing
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Logging and utilities
+tqdm>=4.65.0
+
+# Audio processing
+pydub>=0.25.0
+
+# Hugging Face data management
+huggingface_hub>=0.20.0
+python-dotenv>=1.0.0
+
+# Development (optionnel)
+pytest>=7.4.0
+black>=23.0.0
+flake8>=6.0.0
