@@ -115,6 +115,9 @@ class Config:
     
     # Fichier de session (pour reprendre le travail)
     SESSION_FILE = os.path.join(_BASE, "audio", "session.json")
+    
+    # Mot de passe admin pour le panneau de gestion
+    ADMIN_PASSWORD = "quran-segment"
 
 
 def _load_audio_config():
@@ -2251,7 +2254,17 @@ class AudioSplitterWindow(QMainWindow):
                 self.progress_label.setText("❌ Échec de l'upload")
     
     def _open_admin_panel(self):
-        """Ouvre le panneau d'administration pour vérifier/supprimer le travail du collègue."""
+        """Ouvre le panneau d'administration (protégé par mot de passe)."""
+        # Demander le mot de passe
+        from PyQt6.QtWidgets import QInputDialog, QLineEdit
+        password, ok = QInputDialog.getText(
+            self, "🔐 Accès Admin",
+            "Entrez le mot de passe administrateur:",
+            QLineEdit.EchoMode.Password
+        )
+        if not ok or password != Config.ADMIN_PASSWORD:
+            QMessageBox.warning(self, "Accès refusé", "Mot de passe incorrect.")
+            return
         dialog = AdminPanelDialog(self)
         dialog.exec()
     
@@ -5451,14 +5464,23 @@ class AudioSplitterWindow(QMainWindow):
 # PANNEAU D'ADMINISTRATION
 # =============================================================================
 class AdminPanelDialog(QDialog):
-    """Dialogue pour vérifier et gérer le travail du collègue."""
+    """Dialogue pour vérifier, écouter et gérer le travail du collègue."""
     
     def __init__(self, parent: AudioSplitterWindow):
         super().__init__(parent)
         self.parent_window = parent
-        self.setWindowTitle("🔧 Panneau Admin — Vérifier / Supprimer le travail du collègue")
-        self.setMinimumSize(600, 500)
-        self.resize(700, 550)
+        self.setWindowTitle("🔧 Panneau Admin — Vérifier / Écouter / Supprimer")
+        self.setMinimumSize(750, 650)
+        self.resize(850, 700)
+        
+        # Lecteur audio
+        self._audio_output = QAudioOutput()
+        self._media_player = QMediaPlayer()
+        self._media_player.setAudioOutput(self._audio_output)
+        self._media_player.positionChanged.connect(self._on_player_position_changed)
+        self._media_player.durationChanged.connect(self._on_player_duration_changed)
+        self._current_mp3_files: list = []
+        self._current_surah_dir: str = ""
         
         self._setup_ui()
         self._refresh_data()
@@ -5489,7 +5511,49 @@ class AdminPanelDialog(QDialog):
         self.table.setColumnWidth(3, 120)
         self.table.setColumnWidth(4, 200)
         self.table.setAlternatingRowColors(True)
+        self.table.itemClicked.connect(self._on_table_row_selected)
         layout.addWidget(self.table)
+        
+        # --- SECTION LECTEUR AUDIO ---
+        player_group = QGroupBox("🎵 Lecteur audio — Sélectionnez une sourate ci-dessus")
+        player_layout = QVBoxLayout(player_group)
+        
+        # Liste des fichiers MP3 de la sourate sélectionnée
+        self.mp3_list = QListWidget()
+        self.mp3_list.setMaximumHeight(120)
+        self.mp3_list.itemDoubleClicked.connect(self._play_selected_mp3)
+        self.mp3_list.setAlternatingRowColors(True)
+        player_layout.addWidget(self.mp3_list)
+        
+        # Contrôles de lecture
+        controls_layout = QHBoxLayout()
+        
+        self.play_audio_btn = QPushButton("▶️ Lecture")
+        self.play_audio_btn.setEnabled(False)
+        self.play_audio_btn.clicked.connect(self._toggle_audio_playback)
+        controls_layout.addWidget(self.play_audio_btn)
+        
+        self.stop_audio_btn = QPushButton("⏹️ Stop")
+        self.stop_audio_btn.setEnabled(False)
+        self.stop_audio_btn.clicked.connect(self._stop_audio_playback)
+        controls_layout.addWidget(self.stop_audio_btn)
+        
+        self.audio_slider = QSlider(Qt.Orientation.Horizontal)
+        self.audio_slider.setRange(0, 0)
+        self.audio_slider.sliderMoved.connect(self._seek_audio)
+        controls_layout.addWidget(self.audio_slider, 1)
+        
+        self.audio_time_label = QLabel("0:00 / 0:00")
+        self.audio_time_label.setStyleSheet("font-family: monospace; color: #666;")
+        controls_layout.addWidget(self.audio_time_label)
+        
+        player_layout.addLayout(controls_layout)
+        
+        self.player_info = QLabel("Sélectionnez une sourate dans le tableau pour voir ses fichiers audio.")
+        self.player_info.setStyleSheet("color: #888; font-size: 11px; font-style: italic;")
+        player_layout.addWidget(self.player_info)
+        
+        layout.addWidget(player_group)
         
         # Boutons globaux
         btn_layout = QHBoxLayout()
@@ -5508,16 +5572,115 @@ class AdminPanelDialog(QDialog):
         btn_layout.addStretch()
         
         close_btn = QPushButton("Fermer")
-        close_btn.clicked.connect(self.accept)
+        close_btn.clicked.connect(self._close_dialog)
         btn_layout.addWidget(close_btn)
         
         layout.addLayout(btn_layout)
+    
+    def _on_table_row_selected(self, item: QTreeWidgetItem):
+        """Quand une sourate est sélectionnée, charge ses fichiers audio."""
+        surah_str = item.text(0)
+        if not surah_str.isdigit():
+            return
+        
+        surah_num = int(surah_str)
+        surah_dir = os.path.join(Config.AUDIO_OUTPUT_DIR, f"{surah_num:03d}")
+        
+        self.mp3_list.clear()
+        self._stop_audio_playback()
+        self._current_mp3_files = []
+        self._current_surah_dir = surah_dir
+        
+        if not os.path.exists(surah_dir):
+            self.player_info.setText(f"⚠️ Aucun dossier local pour la Sourate {surah_num} (peut-être uniquement sur HF).")
+            self.play_audio_btn.setEnabled(False)
+            return
+        
+        mp3_files = sorted(glob.glob(os.path.join(surah_dir, "*.mp3")))
+        if not mp3_files:
+            self.player_info.setText(f"⚠️ Aucun fichier MP3 trouvé dans {surah_dir}.")
+            self.play_audio_btn.setEnabled(False)
+            return
+        
+        self._current_mp3_files = mp3_files
+        for f in mp3_files:
+            name = os.path.basename(f)
+            try:
+                from pydub import AudioSegment
+                dur = len(AudioSegment.from_file(f)) / 1000
+                display = f"{name}  ({int(dur//60)}:{int(dur%60):02d})"
+            except Exception:
+                display = name
+            list_item = QListWidgetItem(display)
+            list_item.setData(Qt.ItemDataRole.UserRole, f)
+            self.mp3_list.addItem(list_item)
+        
+        self.player_info.setText(f"🎵 Sourate {surah_num} — {len(mp3_files)} fichier(s). Double-cliquez pour lire.")
+        self.play_audio_btn.setEnabled(True)
+    
+    def _play_selected_mp3(self, item: QListWidgetItem):
+        """Joue le MP3 sélectionné dans la liste."""
+        file_path = item.data(Qt.ItemDataRole.UserRole)
+        if not file_path or not os.path.exists(file_path):
+            return
+        self._media_player.setSource(QUrl.fromLocalFile(file_path))
+        self._media_player.play()
+        self.play_audio_btn.setText("⏸️ Pause")
+        self.stop_audio_btn.setEnabled(True)
+    
+    def _toggle_audio_playback(self):
+        """Play/Pause le MP3 actuellement sélectionné."""
+        current_item = self.mp3_list.currentItem()
+        if not current_item:
+            # Sélectionner le premier si aucun n'est sélectionné
+            if self.mp3_list.count() > 0:
+                self.mp3_list.setCurrentRow(0)
+                current_item = self.mp3_list.item(0)
+            else:
+                return
+        
+        if self._media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+            self._media_player.pause()
+            self.play_audio_btn.setText("▶️ Lecture")
+        else:
+            # Si aucune source n'est chargée ou si c'est une nouvelle sélection
+            current_source = self._media_player.source().toLocalFile()
+            expected = current_item.data(Qt.ItemDataRole.UserRole)
+            if not current_source or current_source != expected:
+                self._media_player.setSource(QUrl.fromLocalFile(expected))
+            self._media_player.play()
+            self.play_audio_btn.setText("⏸️ Pause")
+            self.stop_audio_btn.setEnabled(True)
+    
+    def _stop_audio_playback(self):
+        """Arrête la lecture audio."""
+        self._media_player.stop()
+        self.play_audio_btn.setText("▶️ Lecture")
+        self.stop_audio_btn.setEnabled(False)
+        self.audio_slider.setValue(0)
+        self.audio_time_label.setText("0:00 / 0:00")
+    
+    def _seek_audio(self, position: int):
+        """Va à une position dans l'audio."""
+        self._media_player.setPosition(position)
+    
+    def _on_player_position_changed(self, position: int):
+        """Met à jour le slider de position."""
+        self.audio_slider.setValue(position)
+        dur = self._media_player.duration()
+        self.audio_time_label.setText(
+            f"{int(position//1000//60)}:{int(position//1000%60):02d} / "
+            f"{int(dur//1000//60)}:{int(dur//1000%60):02d}"
+        )
+    
+    def _on_player_duration_changed(self, duration: int):
+        """Met à jour la plage du slider quand la durée change."""
+        self.audio_slider.setRange(0, duration)
     
     def _refresh_data(self):
         """Rafraîchit la liste des sourates."""
         self.table.clear()
         
-        # Récupérer les données
         local_done = get_local_completed_surahs()
         remote_done = get_remote_completed_surahs()
         all_done = local_done | remote_done
@@ -5532,7 +5695,6 @@ class AdminPanelDialog(QDialog):
             mp3_files = glob.glob(os.path.join(surah_dir, "*.mp3")) if os.path.exists(surah_dir) else []
             mp3_count = len(mp3_files)
             
-            # Taille totale
             total_size = 0
             for f in mp3_files:
                 try:
@@ -5542,7 +5704,6 @@ class AdminPanelDialog(QDialog):
             size_mb = total_size / (1024 * 1024)
             size_str = f"{size_mb:.1f} MB"
             
-            # Source
             is_local = surah_num in local_done
             is_remote = surah_num in remote_done
             if is_local and is_remote:
@@ -5554,7 +5715,6 @@ class AdminPanelDialog(QDialog):
             else:
                 source = "⚪ —"
             
-            # Widget d'action (boutons)
             action_widget = QWidget()
             action_layout = QHBoxLayout(action_widget)
             action_layout.setContentsMargins(4, 2, 4, 2)
@@ -5602,7 +5762,6 @@ class AdminPanelDialog(QDialog):
         
         if reply == QMessageBox.StandardButton.Yes:
             if delete_surah_locally(surah_num):
-                # Retirer aussi du set du parent
                 if hasattr(self.parent_window, '_completed_surahs'):
                     self.parent_window._completed_surahs.discard(surah_num)
                 QMessageBox.information(self, "Supprimé", f"Sourate {surah_num} supprimée.")
@@ -5662,6 +5821,11 @@ class AdminPanelDialog(QDialog):
             
             QMessageBox.information(self, "Terminé", f"{deleted} sourate(s) supprimée(s).")
             self._refresh_data()
+    
+    def _close_dialog(self):
+        """Ferme le dialogue proprement (arrête le lecteur)."""
+        self._stop_audio_playback()
+        self.accept()
 
 
 # =============================================================================
