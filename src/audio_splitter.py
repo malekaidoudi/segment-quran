@@ -2257,8 +2257,34 @@ class AudioSplitterWindow(QMainWindow):
         # Vérification distante (peut être lente)
         remote_done = get_remote_completed_surahs()
         
+        # Détecter les sourates sur HF mais pas en local
+        remote_only = remote_done - local_done
+        
         # Fusionner les deux sets
         self._completed_surahs = local_done | remote_done
+        
+        # Si des sourates sont sur HF mais pas localement, proposer le téléchargement
+        if remote_only:
+            remote_list = sorted(remote_only)
+            if len(remote_list) <= 10:
+                remote_str = ", ".join(str(s) for s in remote_list)
+            else:
+                remote_str = ", ".join(str(s) for s in remote_list[:10]) + f" ... et {len(remote_list)-10} autres"
+            
+            reply = QMessageBox.question(
+                self,
+                "📥 Sourates disponibles sur Hugging Face",
+                f"{len(remote_only)} sourate(s) existent sur Hugging Face mais pas en local:\n\n"
+                f"Sourates: {remote_str}\n\n"
+                f"Voulez-vous les télécharger maintenant?\n"
+                f"(Les MP3 seront téléchargés depuis le dataset HF)",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes
+            )
+            
+            if reply == QMessageBox.StandardButton.Yes:
+                self._sync_hf_data()
+                return
         
         if self._completed_surahs:
             # Formater le message
@@ -2287,6 +2313,26 @@ class AudioSplitterWindow(QMainWindow):
         else:
             self._completed_surahs = set()
     
+    def _sync_hf_data(self):
+        """Télécharge les données manquantes depuis Hugging Face."""
+        try:
+            data_manager.sync_data()
+            # Recharger la liste des sourates locales après sync
+            self._completed_surahs = get_local_completed_surahs() | get_remote_completed_surahs()
+            QMessageBox.information(
+                self,
+                "✅ Synchronisation terminée",
+                "Les données ont été synchronisées avec Hugging Face.\n"
+                "Vous pouvez maintenant charger les sourates dans l'application."
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "❌ Erreur de synchronisation",
+                f"Impossible de synchroniser avec Hugging Face:\n{str(e)}\n\n"
+                f"Vérifiez votre connexion internet et le token HF."
+            )
+
     def _upload_current_surah(self):
         """Upload la sourate actuelle vers Hugging Face."""
         if self.juz_mode:
@@ -5643,6 +5689,12 @@ class AdminPanelDialog(QDialog):
         refresh_btn.clicked.connect(self._refresh_from_hf)
         btn_layout.addWidget(refresh_btn)
         
+        sync_btn = QPushButton("📥 Sync HF")
+        sync_btn.setToolTip("Télécharger les MP3 manquants depuis Hugging Face")
+        sync_btn.setStyleSheet("background-color: #2980b9; color: white; font-weight: bold;")
+        sync_btn.clicked.connect(self._sync_from_hf)
+        btn_layout.addWidget(sync_btn)
+        
         delete_all_local_btn = QPushButton("🗑️ Tout supprimer (local)")
         delete_all_local_btn.setToolTip("Supprime TOUS les dossiers de sourates en local")
         delete_all_local_btn.setStyleSheet("background-color: #e74c3c; color: white;")
@@ -5987,6 +6039,14 @@ class AdminPanelDialog(QDialog):
             self.parent_window._completed_surahs |= remote_done
         
         self._refresh_data()
+    
+    def _sync_from_hf(self):
+        """Télécharge les MP3 manquants depuis HF et rafraîchit."""
+        if hasattr(self.parent_window, '_sync_hf_data'):
+            self.parent_window._sync_hf_data()
+            self._refresh_data()
+        else:
+            QMessageBox.warning(self, "Erreur", "Fonction de synchronisation non disponible.")
     
     def _delete_all_local(self):
         """Supprime toutes les sourates locales."""
