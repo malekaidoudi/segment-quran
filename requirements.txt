@@ -16,8 +16,14 @@ torchvision>=0.15.0
 # Logging and utilities
 tqdm>=4.65.0
 
+# GUI
+PyQt6>=6.6.0
+
 # Audio processing
 pydub>=0.25.0
+
+# Data
+pandas>=2.0.0
 
 # Hugging Face data management
 huggingface_hub>=0.20.0
