@@ -117,7 +117,6 @@ class Config:
     SESSION_FILE = os.path.join(_BASE, "audio", "session.json")
     
     # Mot de passe admin pour le panneau de gestion
-    ADMIN_PASSWORD = "quran-segment"
 
 
 def _load_audio_config():
@@ -145,6 +144,9 @@ def _get_hf_token() -> Optional[str]:
     """Récupère le token HF depuis les variables d'environnement."""
     return os.getenv("HUGGINGFACE_TOKEN")
 
+def _get_admin_password() -> str:
+    """Récupère le mot de passe admin depuis les variables d'environnement."""
+    return os.getenv("ADMIN_PASSWORD")
 
 def _get_hf_repo() -> str:
     """Récupère le repo HF depuis les variables d'environnement."""
@@ -2262,7 +2264,7 @@ class AudioSplitterWindow(QMainWindow):
             "Entrez le mot de passe administrateur:",
             QLineEdit.EchoMode.Password
         )
-        if not ok or password != Config.ADMIN_PASSWORD:
+        if not ok or password != _get_admin_password():
             QMessageBox.warning(self, "Accès refusé", "Mot de passe incorrect.")
             return
         dialog = AdminPanelDialog(self)
@@ -2440,28 +2442,8 @@ class AudioSplitterWindow(QMainWindow):
         keep_layout.addStretch()
         params_layout.addLayout(keep_layout)
         
-        # Mode Juz (multi-sourate)
-        juz_layout = QHBoxLayout()
-        self.juz_mode_checkbox = QCheckBox("📚 Mode Juz")
-        self.juz_mode_checkbox.setToolTip(
-            "Activez ce mode pour segmenter un fichier contenant plusieurs sourates.\n"
-            "Les segments seront stockés dans 'juz_XX_temp/' puis vous pourrez\n"
-            "utiliser '📤 Transférer' pour les déplacer vers leurs sourates."
-        )
-        self.juz_mode_checkbox.setStyleSheet("font-weight: bold; color: #8e44ad;")
-        self.juz_mode_checkbox.toggled.connect(self._toggle_juz_mode)
-        juz_layout.addWidget(self.juz_mode_checkbox)
-        
-        juz_layout.addWidget(QLabel("Numéro:"))
-        self.juz_num_spin = QSpinBox()
-        self.juz_num_spin.setRange(1, 30)
-        self.juz_num_spin.setValue(30)
-        self.juz_num_spin.setEnabled(False)
-        self.juz_num_spin.setToolTip("Numéro du Juz (1-30) pour afficher les ayats correspondants")
-        self.juz_num_spin.valueChanged.connect(self._on_juz_num_changed)
-        juz_layout.addWidget(self.juz_num_spin)
-        
         # Option pour ignorer l'Isti'adha (أَعُوذُ بِاللهِ)
+        istiadha_layout = QHBoxLayout()
         self.skip_istiadha_checkbox = QCheckBox("Ignorer Isti'adha")
         self.skip_istiadha_checkbox.setToolTip(
             "Cochez si le premier segment est 'أَعُوذُ بِاللهِ مِنَ الشَّيْطَانِ الرَّجِيمِ'\n"
@@ -2469,10 +2451,9 @@ class AudioSplitterWindow(QMainWindow):
         )
         self.skip_istiadha_checkbox.setEnabled(True)  # Toujours disponible
         self.skip_istiadha_checkbox.toggled.connect(self._on_skip_istiadha_changed)
-        juz_layout.addWidget(self.skip_istiadha_checkbox)
-        
-        juz_layout.addStretch()
-        params_layout.addLayout(juz_layout)
+        istiadha_layout.addWidget(self.skip_istiadha_checkbox)
+        istiadha_layout.addStretch()
+        params_layout.addLayout(istiadha_layout)
         
         layout.addWidget(params_group)
         
@@ -2609,14 +2590,6 @@ class AudioSplitterWindow(QMainWindow):
         
         playback_layout.addSpacing(10)
         
-        self.validate_btn = QPushButton("✅ Valider Sourate")
-        self.validate_btn.setToolTip("Nettoyer le cache et les backups (opération irréversible)")
-        self.validate_btn.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold;")
-        self.validate_btn.clicked.connect(self._validate_surah)
-        playback_layout.addWidget(self.validate_btn)
-        
-        playback_layout.addSpacing(10)
-        
         self.delete_btn = QPushButton("🗑️ Supprimer")
         self.delete_btn.setEnabled(False)
         self.delete_btn.setToolTip("Supprimer le segment sélectionné")
@@ -2630,21 +2603,6 @@ class AudioSplitterWindow(QMainWindow):
         self.insert_btn.setStyleSheet("background-color: #3498db; color: white;")
         self.insert_btn.clicked.connect(self._insert_missing_segment)
         playback_layout.addWidget(self.insert_btn)
-        
-        playback_layout.addSpacing(10)
-        
-        self.new_surah_btn = QPushButton("📖 Nouvelle Sourate")
-        self.new_surah_btn.setEnabled(False)
-        self.new_surah_btn.setToolTip("Marquer ce segment comme début d'une nouvelle sourate (Basmala)")
-        self.new_surah_btn.setStyleSheet("background-color: #8e44ad; color: white;")
-        self.new_surah_btn.clicked.connect(self._mark_new_surah)
-        playback_layout.addWidget(self.new_surah_btn)
-        
-        self.undo_transfer_btn = QPushButton("↩️ Annuler transfert")
-        self.undo_transfer_btn.setEnabled(False)
-        self.undo_transfer_btn.setToolTip("Annuler le dernier transfert de sourate")
-        self.undo_transfer_btn.clicked.connect(self._undo_transfer)
-        playback_layout.addWidget(self.undo_transfer_btn)
         
         self.playback_label = QLabel("Sélectionnez un segment")
         self.playback_label.setStyleSheet("color: gray; font-style: italic;")
@@ -2864,7 +2822,6 @@ class AudioSplitterWindow(QMainWindow):
         self.split_btn.setEnabled(True)
         self.delete_btn.setEnabled(True)
         self.insert_btn.setEnabled(True)
-        self.new_surah_btn.setEnabled(True)
         self.verify_btn.setEnabled(True)
         
         # Mettre à jour l'interface
@@ -3088,7 +3045,6 @@ class AudioSplitterWindow(QMainWindow):
         self.split_btn.setEnabled(True)
         self.delete_btn.setEnabled(True)
         self.insert_btn.setEnabled(True)
-        self.new_surah_btn.setEnabled(True)
         self.verify_btn.setEnabled(True)
         self.playback_label.setText("Double-cliquez pour lire, Ctrl+clic pour fusionner")
         self.playback_label.setStyleSheet("color: green;")
@@ -3584,14 +3540,10 @@ class AudioSplitterWindow(QMainWindow):
         self.juz_mode = enabled
         
         if enabled:
-            self.juz_mode_checkbox.setStyleSheet("font-weight: bold; color: #8e44ad; background-color: #f0e6f6;")
-            self.juz_num_spin.setEnabled(True)
             self.skip_istiadha_checkbox.setEnabled(True)
             self.surah_spin.setEnabled(False)
             self.start_ayah_spin.setValue(1)
             self.start_ayah_spin.setEnabled(False)
-            
-            self.new_surah_btn.setVisible(True)
             
             # Construire la liste des ayats du Juz
             self._build_juz_ayat_list()
@@ -3614,8 +3566,6 @@ class AudioSplitterWindow(QMainWindow):
                 "   أَعُوذُ بِاللهِ مِنَ الشَّيْطَانِ الرَّجِيمِ"
             )
         else:
-            self.juz_mode_checkbox.setStyleSheet("font-weight: bold; color: #8e44ad;")
-            self.juz_num_spin.setEnabled(False)
             # Ne pas désactiver skip_istiadha - disponible aussi en mode sourate
             self.surah_spin.setEnabled(True)
             self.start_ayah_spin.setEnabled(True)
@@ -4840,7 +4790,7 @@ class AudioSplitterWindow(QMainWindow):
                 
                 # Sauvegarder l'historique pour annulation
                 self.transfer_history.append(transfer_backup)
-                self.undo_transfer_btn.setEnabled(True)
+                pass  # undo_transfer_btn removed
                 
                 # Mettre à jour le numéro de sourate pour la suite
                 self.surah_spin.setValue(finished_surah + 1)
@@ -5171,7 +5121,7 @@ class AudioSplitterWindow(QMainWindow):
             
             # Mettre à jour le bouton
             if not self.transfer_history:
-                self.undo_transfer_btn.setEnabled(False)
+                pass  # undo_transfer_btn removed
             
             QMessageBox.information(
                 self,
@@ -5428,12 +5378,8 @@ class AudioSplitterWindow(QMainWindow):
             self.skip_istiadha = session.get("skip_istiadha", False)
             
             # Mettre à jour l'interface
-            self.juz_mode_checkbox.setChecked(self.juz_mode)
-            if self.juz_mode:
-                self.juz_num_spin.setValue(self.juz_num)
-            else:
-                surah_num = session.get("surah_num", 1)
-                self.surah_spin.setValue(surah_num)
+            surah_num = session.get("surah_num", 1)
+            self.surah_spin.setValue(surah_num)
             
             self.skip_istiadha_checkbox.setChecked(self.skip_istiadha)
             
@@ -5479,8 +5425,10 @@ class AdminPanelDialog(QDialog):
         self._media_player.setAudioOutput(self._audio_output)
         self._media_player.positionChanged.connect(self._on_player_position_changed)
         self._media_player.durationChanged.connect(self._on_player_duration_changed)
+        self._media_player.playbackStateChanged.connect(self._on_playback_state_changed_admin)
         self._current_mp3_files: list = []
         self._current_surah_dir: str = ""
+        self._auto_play_active: bool = False
         
         self._setup_ui()
         self._refresh_data()
@@ -5538,6 +5486,13 @@ class AdminPanelDialog(QDialog):
         self.stop_audio_btn.clicked.connect(self._stop_audio_playback)
         controls_layout.addWidget(self.stop_audio_btn)
         
+        self.auto_play_btn = QPushButton("🔁 Lecture auto")
+        self.auto_play_btn.setEnabled(False)
+        self.auto_play_btn.setToolTip("Lire tous les fichiers MP3 de cette sourate successivement")
+        self.auto_play_btn.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold;")
+        self.auto_play_btn.clicked.connect(self._toggle_auto_play_admin)
+        controls_layout.addWidget(self.auto_play_btn)
+        
         self.audio_slider = QSlider(Qt.Orientation.Horizontal)
         self.audio_slider.setRange(0, 0)
         self.audio_slider.sliderMoved.connect(self._seek_audio)
@@ -5588,6 +5543,7 @@ class AdminPanelDialog(QDialog):
         
         self.mp3_list.clear()
         self._stop_audio_playback()
+        self._auto_play_active = False
         self._current_mp3_files = []
         self._current_surah_dir = surah_dir
         
@@ -5617,6 +5573,7 @@ class AdminPanelDialog(QDialog):
         
         self.player_info.setText(f"🎵 Sourate {surah_num} — {len(mp3_files)} fichier(s). Double-cliquez pour lire.")
         self.play_audio_btn.setEnabled(True)
+        self.auto_play_btn.setEnabled(True)
     
     def _play_selected_mp3(self, item: QListWidgetItem):
         """Joue le MP3 sélectionné dans la liste."""
@@ -5655,6 +5612,9 @@ class AdminPanelDialog(QDialog):
     def _stop_audio_playback(self):
         """Arrête la lecture audio."""
         self._media_player.stop()
+        self._auto_play_active = False
+        self.auto_play_btn.setText("🔁 Lecture auto")
+        self.auto_play_btn.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold;")
         self.play_audio_btn.setText("▶️ Lecture")
         self.stop_audio_btn.setEnabled(False)
         self.audio_slider.setValue(0)
@@ -5676,6 +5636,45 @@ class AdminPanelDialog(QDialog):
     def _on_player_duration_changed(self, duration: int):
         """Met à jour la plage du slider quand la durée change."""
         self.audio_slider.setRange(0, duration)
+    
+    def _toggle_auto_play_admin(self):
+        """Active/désactive la lecture automatique de tous les MP3 d'une sourate."""
+        if self._auto_play_active:
+            self._auto_play_active = False
+            self.auto_play_btn.setText("🔁 Lecture auto")
+            self.auto_play_btn.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold;")
+            self.player_info.setText("Lecture auto arrêtée.")
+        else:
+            if self.mp3_list.count() == 0:
+                return
+            self._auto_play_active = True
+            self.auto_play_btn.setText("⏹️ Arrêter auto")
+            self.auto_play_btn.setStyleSheet("background-color: #e74c3c; color: white; font-weight: bold;")
+            self.player_info.setText("🔁 Lecture auto en cours...")
+            # Démarrer depuis le premier
+            self.mp3_list.setCurrentRow(0)
+            first_item = self.mp3_list.item(0)
+            if first_item:
+                self._play_selected_mp3(first_item)
+    
+    def _on_playback_state_changed_admin(self, state):
+        """Quand un fichier se termine, passe au suivant en mode auto."""
+        if not self._auto_play_active:
+            return
+        if state == QMediaPlayer.PlaybackState.StoppedState:
+            current_row = self.mp3_list.currentRow()
+            next_row = current_row + 1
+            if next_row < self.mp3_list.count():
+                self.mp3_list.setCurrentRow(next_row)
+                next_item = self.mp3_list.item(next_row)
+                if next_item:
+                    self._play_selected_mp3(next_item)
+            else:
+                # Tous les fichiers ont été lus
+                self._auto_play_active = False
+                self.auto_play_btn.setText("🔁 Lecture auto")
+                self.auto_play_btn.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold;")
+                self.player_info.setText("✅ Lecture auto terminée.")
     
     def _refresh_data(self):
         """Rafraîchit la liste des sourates."""
