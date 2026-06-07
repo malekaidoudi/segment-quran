@@ -51,6 +51,13 @@ except ImportError:
 
 import data_manager
 
+# Hugging Face integration
+try:
+    from huggingface_hub import HfApi, list_repo_files, upload_folder
+    HF_AVAILABLE = True
+except ImportError:
+    HF_AVAILABLE = False
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -107,6 +114,140 @@ class Config:
     
     # Fichier de session (pour reprendre le travail)
     SESSION_FILE = os.path.join(_BASE, "audio", "session.json")
+
+
+# =============================================================================
+# HUGGING FACE SYNC UTILITIES
+# =============================================================================
+
+def _get_hf_token() -> Optional[str]:
+    """Récupère le token HF depuis les variables d'environnement."""
+    return os.getenv("HUGGINGFACE_TOKEN")
+
+
+def _get_hf_repo() -> str:
+    """Récupère le repo HF depuis les variables d'environnement."""
+    return os.getenv("HF_DATASET_REPO", "malekaidoudi/segment-quran-data")
+
+
+def get_remote_completed_surahs() -> set:
+    """
+    Vérifie sur Hugging Face quelles sourates ont déjà été uploadées.
+    Retourne un set de numéros de sourates (int) déjà présentes sur HF.
+    """
+    if not HF_AVAILABLE:
+        return set()
+    
+    token = _get_hf_token()
+    if not token:
+        return set()
+    
+    try:
+        api = HfApi(token=token)
+        repo_id = _get_hf_repo()
+        
+        # Lister les fichiers dans le dataset
+        files = list_repo_files(repo_id=repo_id, repo_type="dataset", token=token)
+        
+        completed = set()
+        for f in files:
+            # Chercher les dossiers audio/output/XXX/ ou audio/output/juz_XX_temp/
+            if "audio/output/" in f:
+                parts = f.split("/")
+                try:
+                    idx = parts.index("output")
+                    folder = parts[idx + 1] if idx + 1 < len(parts) else ""
+                    # Sourate numérique: 001-114
+                    if folder.isdigit() and 1 <= int(folder) <= 114:
+                        completed.add(int(folder))
+                except (ValueError, IndexError):
+                    pass
+        
+        return completed
+    except Exception as e:
+        print(f"⚠️ Erreur vérification HF: {e}")
+        return set()
+
+
+def get_local_completed_surahs() -> set:
+    """
+    Vérifie localement quelles sourates ont déjà été segmentées.
+    Retourne un set de numéros de sourates (int) avec des fichiers MP3.
+    """
+    completed = set()
+    output_dir = Config.AUDIO_OUTPUT_DIR
+    
+    if not os.path.exists(output_dir):
+        return completed
+    
+    for entry in os.listdir(output_dir):
+        entry_path = os.path.join(output_dir, entry)
+        if os.path.isdir(entry_path):
+            # Vérifier si c'est un dossier de sourate numérique
+            if entry.isdigit():
+                surah_num = int(entry)
+                if 1 <= surah_num <= 114:
+                    # Vérifier qu'il contient des MP3
+                    mp3_files = glob.glob(os.path.join(entry_path, "*.mp3"))
+                    if mp3_files:
+                        completed.add(surah_num)
+    
+    return completed
+
+
+def upload_surah_to_hf(surah_num: int, parent_widget=None) -> bool:
+    """
+    Upload un dossier de sourate spécifique vers Hugging Face.
+    """
+    if not HF_AVAILABLE:
+        if parent_widget:
+            QMessageBox.warning(parent_widget, "HF non disponible",
+                                "huggingface_hub n'est pas installé.\npip install huggingface_hub")
+        return False
+    
+    token = _get_hf_token()
+    if not token:
+        if parent_widget:
+            QMessageBox.warning(parent_widget, "Token manquant",
+                                "HUGGINGFACE_TOKEN non défini dans .env")
+        return False
+    
+    surah_dir = os.path.join(Config.AUDIO_OUTPUT_DIR, f"{surah_num:03d}")
+    if not os.path.exists(surah_dir):
+        if parent_widget:
+            QMessageBox.warning(parent_widget, "Dossier non trouvé",
+                                f"Dossier local introuvable:\n{surah_dir}")
+        return False
+    
+    try:
+        api = HfApi(token=token)
+        repo_id = _get_hf_repo()
+        
+        # Upload du dossier de la sourate
+        api.upload_folder(
+            folder_path=surah_dir,
+            path_in_repo=f"audio/output/{surah_num:03d}",
+            repo_id=repo_id,
+            repo_type="dataset",
+        )
+        
+        return True
+    except Exception as e:
+        if parent_widget:
+            QMessageBox.critical(parent_widget, "Erreur upload", str(e))
+        return False
+
+
+def delete_surah_locally(surah_num: int) -> bool:
+    """Supprime localement le dossier d'une sourate."""
+    surah_dir = os.path.join(Config.AUDIO_OUTPUT_DIR, f"{surah_num:03d}")
+    if os.path.exists(surah_dir):
+        try:
+            shutil.rmtree(surah_dir)
+            return True
+        except Exception:
+            return False
+    return False
 
 
 # =============================================================================
@@ -1989,6 +2130,9 @@ class AudioSplitterWindow(QMainWindow):
         # Vérifier s'il y a une session précédente à restaurer
         # (après un délai pour laisser l'interface s'afficher)
         QTimer.singleShot(500, self._check_and_restore_session)
+        
+        # Vérifier les sourates déjà traitées sur Hugging Face (async)
+        QTimer.singleShot(1000, self._check_hf_sync_on_startup)
     
     # -------------------------------------------------------------------------
     # Méthodes utilitaires
@@ -2004,6 +2148,94 @@ class AudioSplitterWindow(QMainWindow):
         if self.juz_mode:
             return os.path.join(Config.AUDIO_OUTPUT_DIR, f"juz_{self.juz_num:02d}_temp")
         return os.path.join(Config.AUDIO_OUTPUT_DIR, f"{self.surah_spin.value():03d}")
+    
+    def _check_hf_sync_on_startup(self):
+        """Vérifie au démarrage quelles sourates sont déjà traitées sur HF et localement."""
+        # Vérification locale (rapide)
+        local_done = get_local_completed_surahs()
+        
+        # Vérification distante (peut être lente)
+        remote_done = get_remote_completed_surahs()
+        
+        # Fusionner les deux sets
+        self._completed_surahs = local_done | remote_done
+        
+        if self._completed_surahs:
+            # Formater le message
+            surah_list = sorted(self._completed_surahs)
+            if len(surah_list) <= 10:
+                surah_str = ", ".join(str(s) for s in surah_list)
+            else:
+                surah_str = ", ".join(str(s) for s in surah_list[:10]) + f" ... et {len(surah_list)-10} autres"
+            
+            # Déterminer d'où viennent les données
+            sources = []
+            if local_done:
+                sources.append(f"{len(local_done)} locale(s)")
+            if remote_done:
+                sources.append(f"{len(remote_done)} sur HF")
+            source_str = " + ".join(sources)
+            
+            QMessageBox.information(
+                self,
+                "📋 Sourates déjà traitées",
+                f"{len(self._completed_surahs)} sourate(s) déjà segmentée(s) ({source_str}).\n\n"
+                f"Sourates: {surah_str}\n\n"
+                f"💡 Ces sourates sont verrouillées.\n"
+                f"   Utilisez le panneau Admin (🔧) pour les gérer."
+            )
+        else:
+            self._completed_surahs = set()
+    
+    def _upload_current_surah(self):
+        """Upload la sourate actuelle vers Hugging Face."""
+        if self.juz_mode:
+            QMessageBox.warning(self, "Mode Juz", "L'upload n'est pas disponible en mode Juz.\nUtilisez 'Transférer' puis uploadez chaque sourate.")
+            return
+        
+        surah_num = self.surah_spin.value()
+        surah_dir = os.path.join(Config.AUDIO_OUTPUT_DIR, f"{surah_num:03d}")
+        
+        if not os.path.exists(surah_dir):
+            QMessageBox.warning(self, "Dossier vide", f"Aucun segment trouvé pour la sourate {surah_num}.\nSegmentez d'abord.")
+            return
+        
+        mp3_count = len(glob.glob(os.path.join(surah_dir, "*.mp3")))
+        if mp3_count == 0:
+            QMessageBox.warning(self, "Dossier vide", f"Aucun fichier MP3 dans {surah_dir}")
+            return
+        
+        reply = QMessageBox.question(
+            self,
+            "Confirmer l'upload",
+            f"Uploader la Sourate {surah_num} vers Hugging Face?\n\n"
+            f"📁 {mp3_count} fichiers MP3 seront uploadés.\n\n"
+            f"Cela peut prendre quelques minutes selon la connexion.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            self.progress_label.setText(f"⏳ Upload Sourate {surah_num} vers HF...")
+            QApplication.processEvents()
+            
+            success = upload_surah_to_hf(surah_num, parent_widget=self)
+            
+            if success:
+                self._completed_surahs.add(surah_num)
+                self.progress_label.setText(f"✅ Sourate {surah_num} uploadée sur HF")
+                QMessageBox.information(
+                    self,
+                    "Upload réussi",
+                    f"✅ Sourate {surah_num} uploadée avec succès!\n\n"
+                    f"Votre collègue la verra lors de son prochain démarrage."
+                )
+            else:
+                self.progress_label.setText("❌ Échec de l'upload")
+    
+    def _open_admin_panel(self):
+        """Ouvre le panneau d'administration pour vérifier/supprimer le travail du collègue."""
+        dialog = AdminPanelDialog(self)
+        dialog.exec()
     
     def _update_progress(self, percent: int, message: str, 
                          row: int = -1, op_progress: float = -1) -> None:
@@ -2442,6 +2674,20 @@ class AudioSplitterWindow(QMainWindow):
         self.view_log_btn.setMinimumHeight(40)
         btn_layout.addWidget(self.view_log_btn)
         
+        self.upload_surah_btn = QPushButton("📤 Upload HF")
+        self.upload_surah_btn.setToolTip("Uploader la sourate actuelle vers Hugging Face")
+        self.upload_surah_btn.setStyleSheet("background-color: #FF9800; color: white; font-weight: bold;")
+        self.upload_surah_btn.clicked.connect(self._upload_current_surah)
+        self.upload_surah_btn.setMinimumHeight(40)
+        btn_layout.addWidget(self.upload_surah_btn)
+        
+        self.admin_btn = QPushButton("🔧 Admin")
+        self.admin_btn.setToolTip("Vérifier / supprimer le travail du collègue")
+        self.admin_btn.setStyleSheet("background-color: #607D8B; color: white; font-weight: bold;")
+        self.admin_btn.clicked.connect(self._open_admin_panel)
+        self.admin_btn.setMinimumHeight(40)
+        btn_layout.addWidget(self.admin_btn)
+        
         layout.addLayout(btn_layout)
     
     def _update_thresh_label(self, value):
@@ -2638,8 +2884,19 @@ class AudioSplitterWindow(QMainWindow):
             )
             return
         
-        # Vérifier si la sourate a déjà été segmentée
+        # Vérifier si la sourate est déjà marquée comme terminée (HF ou local)
         surah_num = self.surah_spin.value()
+        if hasattr(self, '_completed_surahs') and surah_num in self._completed_surahs:
+            QMessageBox.warning(
+                self,
+                "🚫 Sourate déjà traitée",
+                f"La Sourate {surah_num} est déjà traitée (HF ou localement).\n\n"
+                f"💡 Utilisez le panneau Admin (🔧) pour la supprimer si besoin,\n"
+                f"   ou sélectionnez une autre sourate à segmenter."
+            )
+            return
+        
+        # Vérifier si la sourate a déjà été segmentée localement
         surah_dir = os.path.join(Config.AUDIO_OUTPUT_DIR, f"{surah_num:03d}")
         
         if os.path.exists(surah_dir):
@@ -5170,6 +5427,223 @@ class AudioSplitterWindow(QMainWindow):
                 "Erreur de restauration",
                 f"Impossible de restaurer complètement la session:\n{str(e)}"
             )
+
+
+# =============================================================================
+# PANNEAU D'ADMINISTRATION
+# =============================================================================
+class AdminPanelDialog(QDialog):
+    """Dialogue pour vérifier et gérer le travail du collègue."""
+    
+    def __init__(self, parent: AudioSplitterWindow):
+        super().__init__(parent)
+        self.parent_window = parent
+        self.setWindowTitle("🔧 Panneau Admin — Vérifier / Supprimer le travail du collègue")
+        self.setMinimumSize(600, 500)
+        self.resize(700, 550)
+        
+        self._setup_ui()
+        self._refresh_data()
+    
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        
+        # Titre
+        title = QLabel("📋 Sourates déjà traitées")
+        title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+        
+        # Légende
+        legend = QLabel(
+            "🟢 = Local uniquement  |  🔵 = HF uniquement  |  🟣 = Les deux  |  ⚪ = Aucun"
+        )
+        legend.setStyleSheet("color: #666; font-size: 11px;")
+        legend.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(legend)
+        
+        # Tableau des sourates
+        self.table = QTreeWidget()
+        self.table.setHeaderLabels(["Sourate", "Fichiers MP3", "Source", "Taille totale", "Action"])
+        self.table.setColumnWidth(0, 80)
+        self.table.setColumnWidth(1, 100)
+        self.table.setColumnWidth(2, 120)
+        self.table.setColumnWidth(3, 120)
+        self.table.setColumnWidth(4, 200)
+        self.table.setAlternatingRowColors(True)
+        layout.addWidget(self.table)
+        
+        # Boutons globaux
+        btn_layout = QHBoxLayout()
+        
+        refresh_btn = QPushButton("🔄 Rafraîchir HF")
+        refresh_btn.setToolTip("Revérifier les sourates sur Hugging Face")
+        refresh_btn.clicked.connect(self._refresh_from_hf)
+        btn_layout.addWidget(refresh_btn)
+        
+        delete_all_local_btn = QPushButton("🗑️ Tout supprimer (local)")
+        delete_all_local_btn.setToolTip("Supprime TOUS les dossiers de sourates en local")
+        delete_all_local_btn.setStyleSheet("background-color: #e74c3c; color: white;")
+        delete_all_local_btn.clicked.connect(self._delete_all_local)
+        btn_layout.addWidget(delete_all_local_btn)
+        
+        btn_layout.addStretch()
+        
+        close_btn = QPushButton("Fermer")
+        close_btn.clicked.connect(self.accept)
+        btn_layout.addWidget(close_btn)
+        
+        layout.addLayout(btn_layout)
+    
+    def _refresh_data(self):
+        """Rafraîchit la liste des sourates."""
+        self.table.clear()
+        
+        # Récupérer les données
+        local_done = get_local_completed_surahs()
+        remote_done = get_remote_completed_surahs()
+        all_done = local_done | remote_done
+        
+        if not all_done:
+            item = QTreeWidgetItem(["—", "Aucune sourate traitée", "—", "—", "Segmentez d'abord"])
+            self.table.addTopLevelItem(item)
+            return
+        
+        for surah_num in sorted(all_done):
+            surah_dir = os.path.join(Config.AUDIO_OUTPUT_DIR, f"{surah_num:03d}")
+            mp3_files = glob.glob(os.path.join(surah_dir, "*.mp3")) if os.path.exists(surah_dir) else []
+            mp3_count = len(mp3_files)
+            
+            # Taille totale
+            total_size = 0
+            for f in mp3_files:
+                try:
+                    total_size += os.path.getsize(f)
+                except:
+                    pass
+            size_mb = total_size / (1024 * 1024)
+            size_str = f"{size_mb:.1f} MB"
+            
+            # Source
+            is_local = surah_num in local_done
+            is_remote = surah_num in remote_done
+            if is_local and is_remote:
+                source = "🟣 Local + HF"
+            elif is_local:
+                source = "🟢 Local"
+            elif is_remote:
+                source = "🔵 HF"
+            else:
+                source = "⚪ —"
+            
+            # Widget d'action (boutons)
+            action_widget = QWidget()
+            action_layout = QHBoxLayout(action_widget)
+            action_layout.setContentsMargins(4, 2, 4, 2)
+            action_layout.setSpacing(6)
+            
+            delete_btn = QPushButton("🗑️ Supprimer")
+            delete_btn.setProperty("surah_num", surah_num)
+            delete_btn.clicked.connect(self._delete_surah)
+            delete_btn.setStyleSheet("background-color: #e74c3c; color: white; padding: 2px 8px; font-size: 11px;")
+            action_layout.addWidget(delete_btn)
+            
+            unlock_btn = QPushButton("🔓 Déverrouiller")
+            unlock_btn.setProperty("surah_num", surah_num)
+            unlock_btn.clicked.connect(self._unlock_surah)
+            unlock_btn.setStyleSheet("background-color: #f39c12; color: white; padding: 2px 8px; font-size: 11px;")
+            action_layout.addWidget(unlock_btn)
+            
+            action_layout.addStretch()
+            
+            item = QTreeWidgetItem([
+                str(surah_num),
+                str(mp3_count),
+                source,
+                size_str,
+                ""
+            ])
+            self.table.addTopLevelItem(item)
+            self.table.setItemWidget(item, 4, action_widget)
+    
+    def _delete_surah(self):
+        """Supprime une sourate localement."""
+        btn = self.sender()
+        if not btn:
+            return
+        surah_num = btn.property("surah_num")
+        
+        reply = QMessageBox.warning(
+            self,
+            "Confirmer la suppression",
+            f"Supprimer la Sourate {surah_num} localement?\n\n"
+            f"Cette action est irréversible!",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            if delete_surah_locally(surah_num):
+                # Retirer aussi du set du parent
+                if hasattr(self.parent_window, '_completed_surahs'):
+                    self.parent_window._completed_surahs.discard(surah_num)
+                QMessageBox.information(self, "Supprimé", f"Sourate {surah_num} supprimée.")
+                self._refresh_data()
+            else:
+                QMessageBox.warning(self, "Erreur", f"Impossible de supprimer la Sourate {surah_num}.")
+    
+    def _unlock_surah(self):
+        """Déverrouille une sourate (la retire du set de complétion)."""
+        btn = self.sender()
+        if not btn:
+            return
+        surah_num = btn.property("surah_num")
+        
+        if hasattr(self.parent_window, '_completed_surahs'):
+            self.parent_window._completed_surahs.discard(surah_num)
+            QMessageBox.information(
+                self,
+                "Déverrouillé",
+                f"Sourate {surah_num} déverrouillée.\n\n"
+                f"Vous pouvez maintenant la re-segmenter."
+            )
+            self._refresh_data()
+    
+    def _refresh_from_hf(self):
+        """Revérifie HF et rafraîchit la liste."""
+        self.table.clear()
+        item = QTreeWidgetItem(["⏳", "Vérification en cours...", "Patientez", "—", "—"])
+        self.table.addTopLevelItem(item)
+        QApplication.processEvents()
+        
+        remote_done = get_remote_completed_surahs()
+        if hasattr(self.parent_window, '_completed_surahs'):
+            self.parent_window._completed_surahs |= remote_done
+        
+        self._refresh_data()
+    
+    def _delete_all_local(self):
+        """Supprime toutes les sourates locales."""
+        reply = QMessageBox.warning(
+            self,
+            "⚠️ SUPPRESSION MASSIVE",
+            "Voulez-vous vraiment supprimer TOUTES les sourates locales?\n\n"
+            "Cette action est IRRÉVERSIBLE et supprimera tous les fichiers MP3!",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            local_done = get_local_completed_surahs()
+            deleted = 0
+            for surah_num in local_done:
+                if delete_surah_locally(surah_num):
+                    deleted += 1
+                    if hasattr(self.parent_window, '_completed_surahs'):
+                        self.parent_window._completed_surahs.discard(surah_num)
+            
+            QMessageBox.information(self, "Terminé", f"{deleted} sourate(s) supprimée(s).")
+            self._refresh_data()
 
 
 # =============================================================================
