@@ -5519,12 +5519,17 @@ class AdminPanelDialog(QDialog):
         self.preview_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
         preview_layout.addWidget(self.preview_text)
         
+        self.preview_scroll = QScrollArea()
+        self.preview_scroll.setWidgetResizable(True)
+        self.preview_scroll.setMinimumHeight(250)
+        self.preview_scroll.setStyleSheet("background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 4px;")
+        
         self.preview_image = QLabel()
         self.preview_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_image.setMinimumHeight(200)
-        self.preview_image.setStyleSheet("background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 4px;")
+        self.preview_image.setStyleSheet("background-color: #f5f5f5;")
         self.preview_image.setText("📖 Image de l'ayat")
-        preview_layout.addWidget(self.preview_image)
+        self.preview_scroll.setWidget(self.preview_image)
+        preview_layout.addWidget(self.preview_scroll)
         
         layout.addWidget(preview_group)
         
@@ -5703,13 +5708,21 @@ class AdminPanelDialog(QDialog):
         self._media_player.setPosition(position)
     
     def _on_player_position_changed(self, position: int):
-        """Met à jour le slider de position."""
+        """Met à jour le slider de position et fait défiler l'image automatiquement."""
         self.audio_slider.setValue(position)
         dur = self._media_player.duration()
         self.audio_time_label.setText(
             f"{int(position//1000//60)}:{int(position//1000%60):02d} / "
             f"{int(dur//1000//60)}:{int(dur//1000%60):02d}"
         )
+        
+        # Défilement automatique de l'image de prévisualisation
+        v_scrollbar = self.preview_scroll.verticalScrollBar()
+        if v_scrollbar and v_scrollbar.maximum() > 0 and dur > 0:
+            progress = position / dur
+            scroll_value = int(progress * v_scrollbar.maximum())
+            scroll_value = min(scroll_value, v_scrollbar.maximum())
+            v_scrollbar.setValue(scroll_value)
     
     def _on_player_duration_changed(self, duration: int):
         """Met à jour la plage du slider quand la durée change."""
