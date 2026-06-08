@@ -1123,7 +1123,7 @@ class QuranEditor(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Quran Ayat Editor")
-        self.setMinimumSize(1400, 900)
+        self.setMinimumSize(1100, 650)
         
         # State
         self.data = {"ayats": [], "metadata": {}}
@@ -1269,7 +1269,7 @@ class QuranEditor(QMainWindow):
         
         # === LEFT PANEL: Navigation ===
         left = QWidget()
-        left.setFixedWidth(350)
+        left.setFixedWidth(280)
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(12, 12, 12, 12)
         left_layout.setSpacing(12)
@@ -1407,7 +1407,7 @@ class QuranEditor(QMainWindow):
         
         # === RIGHT PANEL: Properties ===
         right = QWidget()
-        right.setFixedWidth(320)
+        right.setFixedWidth(260)
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(12, 12, 12, 12)
         right_layout.setSpacing(12)

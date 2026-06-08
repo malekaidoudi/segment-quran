@@ -304,8 +304,8 @@ class LauncherWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Quran Segmentation  —  Launcher")
-        self.setMinimumSize(800, 580)
-        self.resize(800, 580)
+        self.setMinimumSize(750, 520)
+        self.resize(750, 520)
         self._setup_ui()
         self._apply_global_style()
 
@@ -338,23 +338,23 @@ class LauncherWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
-        layout.setSpacing(20)
-        layout.setContentsMargins(50, 35, 50, 35)
+        layout.setSpacing(10)
+        layout.setContentsMargins(25, 15, 25, 15)
 
         # --- HEADER ---
         header = QWidget()
         header.setStyleSheet("background-color: #16213e; border-radius: 16px;")
         header_layout = QVBoxLayout(header)
-        header_layout.setContentsMargins(30, 25, 30, 25)
+        header_layout.setContentsMargins(15, 10, 15, 10)
 
         title = QLabel("🕌  Quran Segmentation")
-        title.setFont(QFont("Inter", 26, QFont.Weight.Bold))
+        title.setFont(QFont("Inter", 20, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("color: #ffffff; margin-bottom: 4px;")
         header_layout.addWidget(title)
 
         subtitle = QLabel("Segmentation de pages  ·  Découpage audio  ·  Collaboration")
-        subtitle.setFont(QFont("Inter", 11))
+        subtitle.setFont(QFont("Inter", 10))
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         subtitle.setStyleSheet("color: #8892b0; letter-spacing: 1px;")
         header_layout.addWidget(subtitle)
@@ -364,8 +364,8 @@ class LauncherWindow(QMainWindow):
         # --- APPLICATIONS ---
         apps_group = QGroupBox("APPLICATIONS")
         apps_layout = QVBoxLayout(apps_group)
-        apps_layout.setSpacing(16)
-        apps_layout.setContentsMargins(25, 20, 25, 20)
+        apps_layout.setSpacing(8)
+        apps_layout.setContentsMargins(12, 10, 12, 10)
 
         # Desktop App Card
         desktop_card = self._create_app_card(
@@ -394,11 +394,11 @@ class LauncherWindow(QMainWindow):
         # --- CONFIGURATION ---
         config_group = QGroupBox("CONFIGURATION")
         config_layout = QHBoxLayout(config_group)
-        config_layout.setSpacing(20)
-        config_layout.setContentsMargins(25, 15, 25, 15)
+        config_layout.setSpacing(12)
+        config_layout.setContentsMargins(12, 10, 12, 10)
 
         settings_btn = QPushButton("⚙️  Paramètres")
-        settings_btn.setMinimumHeight(50)
+        settings_btn.setMinimumHeight(32)
         settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         settings_btn.setStyleSheet("""
             QPushButton {
@@ -407,7 +407,7 @@ class LauncherWindow(QMainWindow):
                 font-weight: bold;
                 font-size: 13px;
                 border-radius: 10px;
-                padding: 10px 28px;
+                padding: 6px 16px;
             }
             QPushButton:hover {
                 background-color: #d97706;
@@ -435,7 +435,7 @@ class LauncherWindow(QMainWindow):
             "Sélectionnez une application ci-dessus pour commencer le travail de segmentation."
         )
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        footer.setStyleSheet("color: #475569; font-size: 11px; margin-top: 8px;")
+        footer.setStyleSheet("color: #475569; font-size: 11px; margin-top: 4px;")
         layout.addWidget(footer)
         layout.addStretch()
 
@@ -455,11 +455,11 @@ class LauncherWindow(QMainWindow):
             }}
         """)
         card_layout = QHBoxLayout(card)
-        card_layout.setContentsMargins(25, 20, 25, 20)
-        card_layout.setSpacing(20)
+        card_layout.setContentsMargins(12, 8, 12, 8)
+        card_layout.setSpacing(10)
 
         icon_label = QLabel(icon)
-        icon_label.setFont(QFont("Segoe UI Emoji", 32))
+        icon_label.setFont(QFont("Segoe UI Emoji", 24))
         icon_label.setStyleSheet("border: none; background: transparent;")
         card_layout.addWidget(icon_label)
 
@@ -467,12 +467,12 @@ class LauncherWindow(QMainWindow):
         text_layout.setSpacing(6)
 
         title_label = QLabel(title)
-        title_label.setFont(QFont("Inter", 14, QFont.Weight.Bold))
+        title_label.setFont(QFont("Inter", 12, QFont.Weight.Bold))
         title_label.setStyleSheet(f"color: {color}; border: none; background: transparent;")
         text_layout.addWidget(title_label)
 
         desc_label = QLabel(desc)
-        desc_label.setFont(QFont("Inter", 10))
+        desc_label.setFont(QFont("Inter", 9))
         desc_label.setStyleSheet("color: #94a3b8; border: none; background: transparent;")
         desc_label.setWordWrap(True)
         text_layout.addWidget(desc_label)
