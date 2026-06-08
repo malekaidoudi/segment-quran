@@ -3042,6 +3042,19 @@ class AudioSplitterWindow(QMainWindow):
                 )
                 if reply == QMessageBox.StandardButton.No:
                     return
+                # Nettoyer les anciens segments et backups
+                for f in existing_mp3s:
+                    try:
+                        os.remove(f)
+                    except Exception:
+                        pass
+                for backup_name in ("_backup", "_split_backup", "ayat_cache"):
+                    backup_path = os.path.join(surah_dir, backup_name)
+                    if os.path.isdir(backup_path):
+                        try:
+                            shutil.rmtree(backup_path)
+                        except Exception:
+                            pass
         
         # Vérifier la taille du fichier et avertir si gros
         file_size_mb = os.path.getsize(self.current_file) / (1024 * 1024)
