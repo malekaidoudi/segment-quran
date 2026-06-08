@@ -1343,8 +1343,8 @@ class SplitPreviewDialog(QDialog):
         self.preview_end_ms = 0
         
         self.setWindowTitle("✂️ Diviser le segment")
-        self.setMinimumSize(650, 600)
-        self.resize(720, 650)
+        self.setMinimumSize(600, 500)
+        self.resize(680, 580)
         
         self._setup_ui()
         self._setup_player()
@@ -1360,7 +1360,7 @@ class SplitPreviewDialog(QDialog):
         # Zone d'images des polygones (scrollable)
         img_scroll = QScrollArea()
         img_scroll.setWidgetResizable(True)
-        img_scroll.setMaximumHeight(460)
+        img_scroll.setMaximumHeight(300)
         img_scroll.setStyleSheet("QScrollArea { border: 1px solid #ddd; background: #f9f9f9; border-radius: 5px; }")
         
         img_widget = QWidget()
@@ -1456,18 +1456,18 @@ class SplitPreviewDialog(QDialog):
         self.stop_btn.clicked.connect(self._stop)
         playback_layout.addWidget(self.stop_btn)
         
-        playback_layout.addSpacing(20)
-        
+        playback_layout.addSpacing(8)
+
         self.mark_btn = QPushButton("✂️ Marquer ici")
-        self.mark_btn.setStyleSheet("background-color: #ff6600; color: white; font-weight: bold; padding: 8px 16px;")
+        self.mark_btn.setStyleSheet("background-color: #ff6600; color: white; font-weight: bold; padding: 4px 10px;")
         self.mark_btn.clicked.connect(self._mark_split_point)
         playback_layout.addWidget(self.mark_btn)
         
         playback_layout.addStretch()
         layout.addLayout(playback_layout)
         
-        layout.addSpacing(15)
-        
+        layout.addSpacing(8)
+
         # Point de coupure manuel
         split_layout = QHBoxLayout()
         split_layout.addWidget(QLabel("Point de coupure (secondes):"))
@@ -1521,7 +1521,7 @@ class SplitPreviewDialog(QDialog):
         buttons_layout.addWidget(cancel_btn)
         
         ok_btn = QPushButton("✅ Diviser à ce point")
-        ok_btn.setStyleSheet("background-color: #00aa00; color: white; font-weight: bold; padding: 8px 16px;")
+        ok_btn.setStyleSheet("background-color: #00aa00; color: white; font-weight: bold; padding: 4px 10px;")
         ok_btn.clicked.connect(self._accept_split)
         buttons_layout.addWidget(ok_btn)
         
@@ -1691,8 +1691,8 @@ class RecoverSegmentDialog(QDialog):
         self._estimate_lost_segment()
         
         self.setWindowTitle("🔧 Récupérer un segment perdu")
-        self.setMinimumSize(700, 600)
-        self.resize(800, 700)
+        self.setMinimumSize(600, 500)
+        self.resize(700, 600)
         
         self._setup_ui()
         self._setup_player()
@@ -1885,7 +1885,7 @@ class RecoverSegmentDialog(QDialog):
         
         # Liste des segments découpés
         self.segments_list = QListWidget()
-        self.segments_list.setMaximumHeight(150)
+        self.segments_list.setMaximumHeight(120)
         self.segments_list.itemClicked.connect(self._on_segment_selected)
         self.segments_list.itemDoubleClicked.connect(self._play_selected_segment)
         split_layout.addWidget(self.segments_list)
@@ -1908,7 +1908,7 @@ class RecoverSegmentDialog(QDialog):
         
         self.insert_btn = QPushButton("✅ Insérer ce segment")
         self.insert_btn.setEnabled(False)
-        self.insert_btn.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold; padding: 8px 16px;")
+        self.insert_btn.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold; padding: 4px 10px;")
         self.insert_btn.clicked.connect(self._insert_segment)
         insert_layout.addWidget(self.insert_btn)
         
@@ -2171,8 +2171,8 @@ class AudioSplitterWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("🎵 Quran Audio Splitter")
-        self.setMinimumSize(1400, 800)
-        self.resize(1200, 850)
+        self.setMinimumSize(1100, 650)
+        self.resize(1100, 680)
         
         # État
         self.current_file = None
@@ -2442,12 +2442,12 @@ class AudioSplitterWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(8)
+        layout.setContentsMargins(10, 10, 10, 10)
         
         # --- Titre ---
         title = QLabel("Segmentation Audio du Coran")
-        title.setFont(QFont("Arial", 18, QFont.Weight.Bold))
+        title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
         
@@ -2476,8 +2476,8 @@ class AudioSplitterWindow(QMainWindow):
         self.surah_spin.valueChanged.connect(self._on_surah_changed)
         quran_layout.addWidget(self.surah_spin)
         
-        quran_layout.addSpacing(20)
-        
+        quran_layout.addSpacing(8)
+
         quran_layout.addWidget(QLabel("Ayah de départ:"))
         self.start_ayah_spin = QSpinBox()
         self.start_ayah_spin.setRange(0, 286)
@@ -2486,8 +2486,8 @@ class AudioSplitterWindow(QMainWindow):
         self.start_ayah_spin.setToolTip("0 = Basmala, 1+ = Numéro d'ayat")
         quran_layout.addWidget(self.start_ayah_spin)
         
-        quran_layout.addSpacing(20)
-        
+        quran_layout.addSpacing(8)
+
         quran_layout.addWidget(QLabel("Limite:"))
         self.limit_spin = QSpinBox()
         self.limit_spin.setRange(0, 286)
@@ -2496,8 +2496,8 @@ class AudioSplitterWindow(QMainWindow):
         self.limit_spin.setToolTip("0 = Tous les segments détectés")
         quran_layout.addWidget(self.limit_spin)
         
-        quran_layout.addSpacing(30)
-        
+        quran_layout.addSpacing(12)
+
         # Bouton pour charger une sourate déjà traitée
         self.load_surah_btn = QPushButton("📂 Charger Sourate")
         self.load_surah_btn.setToolTip("Charger une sourate déjà segmentée depuis le dossier de sortie")
@@ -2506,7 +2506,7 @@ class AudioSplitterWindow(QMainWindow):
                 background-color: #4CAF50;
                 color: white;
                 font-weight: bold;
-                padding: 8px 16px;
+                padding: 4px 10px;
                 border-radius: 5px;
                 border: none;
             }
@@ -2640,7 +2640,7 @@ class AudioSplitterWindow(QMainWindow):
         # Zone d'affichage de l'image de l'ayat (ScrollArea pour les grandes images)
         self.ayat_scroll = QScrollArea()
         self.ayat_scroll.setWidgetResizable(True)
-        self.ayat_scroll.setMinimumSize(400, 250)
+        self.ayat_scroll.setMinimumSize(300, 180)
         self.ayat_scroll.setStyleSheet(
             "QScrollArea { background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 5px; }"
         )
@@ -2658,7 +2658,7 @@ class AudioSplitterWindow(QMainWindow):
         segments_splitter.addWidget(preview_widget)
         
         # Proportions du splitter (plus de place pour la preview)
-        segments_splitter.setSizes([350, 450])
+        segments_splitter.setSizes([280, 350])
         segments_main_layout.addWidget(segments_splitter)
         
         # Contrôles de lecture
@@ -2759,45 +2759,45 @@ class AudioSplitterWindow(QMainWindow):
         self.start_btn = QPushButton("▶️ Démarrer")
         self.start_btn.setEnabled(False)
         self.start_btn.clicked.connect(self._start_processing)
-        self.start_btn.setMinimumHeight(40)
+        self.start_btn.setMinimumHeight(28)
         btn_layout.addWidget(self.start_btn)
         
         self.cancel_btn = QPushButton("⏹️ Annuler")
         self.cancel_btn.setEnabled(False)
         self.cancel_btn.clicked.connect(self._cancel_processing)
-        self.cancel_btn.setMinimumHeight(40)
+        self.cancel_btn.setMinimumHeight(28)
         btn_layout.addWidget(self.cancel_btn)
         
         self.open_output_btn = QPushButton("📁 Ouvrir dossier")
         self.open_output_btn.clicked.connect(self._open_output_folder)
-        self.open_output_btn.setMinimumHeight(40)
+        self.open_output_btn.setMinimumHeight(28)
         btn_layout.addWidget(self.open_output_btn)
         
         self.verify_btn = QPushButton("🔍 Vérifier")
         self.verify_btn.setEnabled(False)
         self.verify_btn.setToolTip("Vérifie les segments contre le texte du Quran")
         self.verify_btn.clicked.connect(self._verify_segments)
-        self.verify_btn.setMinimumHeight(40)
+        self.verify_btn.setMinimumHeight(28)
         btn_layout.addWidget(self.verify_btn)
         
         self.view_log_btn = QPushButton("📋 Log")
         self.view_log_btn.setToolTip("Voir le journal des actions (fusion, division, etc.)")
         self.view_log_btn.clicked.connect(self._view_action_log)
-        self.view_log_btn.setMinimumHeight(40)
+        self.view_log_btn.setMinimumHeight(28)
         btn_layout.addWidget(self.view_log_btn)
         
         self.upload_surah_btn = QPushButton("📤 Upload HF")
         self.upload_surah_btn.setToolTip("Uploader la sourate actuelle vers Hugging Face")
         self.upload_surah_btn.setStyleSheet("background-color: #FF9800; color: white; font-weight: bold;")
         self.upload_surah_btn.clicked.connect(self._upload_current_surah)
-        self.upload_surah_btn.setMinimumHeight(40)
+        self.upload_surah_btn.setMinimumHeight(28)
         btn_layout.addWidget(self.upload_surah_btn)
         
         self.admin_btn = QPushButton("🔧 Admin")
         self.admin_btn.setToolTip("Vérifier / supprimer le travail du collègue")
         self.admin_btn.setStyleSheet("background-color: #607D8B; color: white; font-weight: bold;")
         self.admin_btn.clicked.connect(self._open_admin_panel)
-        self.admin_btn.setMinimumHeight(40)
+        self.admin_btn.setMinimumHeight(28)
         btn_layout.addWidget(self.admin_btn)
         
         layout.addLayout(btn_layout)
@@ -5561,8 +5561,8 @@ class AdminPanelDialog(QDialog):
         super().__init__(parent)
         self.parent_window = parent
         self.setWindowTitle("🔧 Panneau Admin — Vérifier / Écouter / Supprimer")
-        self.setMinimumSize(900, 800)
-        self.resize(1000, 850)
+        self.setMinimumSize(800, 600)
+        self.resize(850, 650)
         
         # Lecteur audio
         self._audio_output = QAudioOutput()
@@ -5666,7 +5666,7 @@ class AdminPanelDialog(QDialog):
         
         self.preview_scroll = QScrollArea()
         self.preview_scroll.setWidgetResizable(True)
-        self.preview_scroll.setMinimumHeight(250)
+        self.preview_scroll.setMinimumHeight(180)
         self.preview_scroll.setStyleSheet("background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 4px;")
         
         self.preview_image = QLabel()
