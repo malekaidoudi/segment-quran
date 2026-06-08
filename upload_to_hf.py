@@ -54,6 +54,7 @@ def main():
         folder_path=str(DATA_DIR),
         repo_id=HF_DATASET_REPO,
         repo_type="dataset",
+        ignore_patterns=["**/_backup/**", "**/_split_backup/**", "**/ayat_cache/**"],
     )
 
     print("✅ Upload termine avec succes!")

@@ -246,13 +246,23 @@ def upload_surah_to_hf(surah_num: int, parent_widget=None) -> bool:
         api = HfApi(token=token)
         repo_id = _get_hf_repo()
         
-        # Upload du dossier de la sourate
+        # Upload du dossier de la sourate (sans les backups)
         api.upload_folder(
             folder_path=surah_dir,
             path_in_repo=f"audio/output/{surah_num:03d}",
             repo_id=repo_id,
             repo_type="dataset",
+            ignore_patterns=["**/_backup/**", "**/_split_backup/**", "**/ayat_cache/**"],
         )
+        
+        # Supprimer les dossiers de backup localement après upload réussi
+        for backup_name in ("_backup", "_split_backup"):
+            backup_path = os.path.join(surah_dir, backup_name)
+            if os.path.isdir(backup_path):
+                try:
+                    shutil.rmtree(backup_path)
+                except Exception:
+                    pass
         
         return True
     except Exception as e:
